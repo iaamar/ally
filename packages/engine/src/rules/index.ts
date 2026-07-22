@@ -5,6 +5,10 @@ import type {
 import type { Elem, ParsedDoc, AllyConfig } from '../types.js';
 import { fingerprintOf, clusterKeyOf } from '../fingerprint.js';
 import { imageRules } from './images.js';
+import { interactiveRules } from './interactive.js';
+import { ariaRules } from './aria.js';
+import { structureRules } from './structure.js';
+import { documentRules } from './document.js';
 
 /* ── Rule framework interfaces ── */
 
@@ -46,6 +50,10 @@ export interface Rule {
 
 export const RULES: Rule[] = [
   ...imageRules,
+  ...interactiveRules,
+  ...ariaRules,
+  ...structureRules,
+  ...documentRules,
 ];
 
 /* ── draftToFinding builder ── */
