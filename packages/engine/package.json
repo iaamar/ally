@@ -1,0 +1,17 @@
+{ "name": "@ally/engine", "version": "0.1.0", "private": true, "license": "UNLICENSED", "type": "module",
+  "main": "./dist/index.js", "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@ally/shared": "workspace:*",
+    "@babel/parser": "^7.26.0",
+    "@babel/traverse": "^7.26.0",
+    "@babel/types": "^7.26.0",
+    "parse5": "^7.2.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.20.0",
+    "@types/node": "^20.0.0",
+    "typescript": "~5.6.3",
+    "vitest": "^3.0.0"
+  } }
