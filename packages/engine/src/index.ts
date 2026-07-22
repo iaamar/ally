@@ -8,3 +8,4 @@ export { RULES, draftToFinding } from './rules/index.js';
 export type { Rule, RuleMeta, FindingDraft, RuleCtx } from './rules/index.js';
 export * from './rules/helpers.js';
 export { applyVerdicts } from './reasoning.js';
+export { scanProject, scanFiles } from './runner.js';
