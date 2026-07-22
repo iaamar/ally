@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head></head>
+<body>
+  <div>
+    <!-- aria-role-valid -->
+    <div role="buttn">Click</div>
+    <!-- aria-props-valid -->
+    <div aria-expandd="true">Toggle</div>
+    <!-- aria-hidden-on-focusable -->
+    <button aria-hidden="true">Hidden button</button>
+    <!-- no-redundant-role -->
+    <button role="button">Submit</button>
+    <nav role="navigation">Nav</nav>
+    <a href="/home" role="link">Home</a>
+    <!-- form-control-missing-label -->
+    <input type="text" id="orphan" />
+    <!-- heading-has-content -->
+    <h1></h1>
+    <!-- duplicate-id: two divs share id="dup" -->
+    <div id="dup">First</div>
+    <div id="dup">Second</div>
+    <!-- duplicate-id: referenced by label for -->
+    <div id="refdup">A</div>
+    <div id="refdup">B</div>
+    <label for="refdup">Label</label>
+  </div>
+</body>
+</html>
