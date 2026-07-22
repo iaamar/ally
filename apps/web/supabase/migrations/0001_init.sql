@@ -37,7 +37,8 @@ create table public.findings (
   message text not null default '',
   file text not null default '',
   line int not null default 0,
-  snippet text not null default ''
+  snippet text not null default '',
+  position int not null default 0
 );
 create index findings_scan_idx on public.findings (scan_id);
 create index findings_fingerprint_idx on public.findings (fingerprint);
