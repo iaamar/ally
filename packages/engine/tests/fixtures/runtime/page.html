@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Runtime Test Fixture</title></head>
+<body>
+  <!-- Missing alt attribute (axe: image-alt) -->
+  <img src="photo.jpg">
+
+  <!-- Low contrast text (axe: color-contrast) -->
+  <p style="color: #aaa; background-color: #fff;">Low contrast text</p>
+
+  <!-- Properly labelled control — no violation -->
+  <label for="search">Search</label>
+  <input id="search" type="text" aria-label="Search the site">
+
+  <!-- Custom check: small target (< 24px) -->
+  <button style="width: 12px; height: 12px; padding: 0; font-size: 6px;">x</button>
+
+  <!-- Custom check: no focus indicator -->
+  <div tabindex="0" role="button" style="outline: none; box-shadow: none;">Click me</div>
+
+  <!-- Custom check: not keyboard reachable (tabindex=-1) -->
+  <span tabindex="-1" role="button">Unreachable</span>
+</body>
+</html>

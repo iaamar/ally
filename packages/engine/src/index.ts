@@ -10,3 +10,5 @@ export * from './rules/helpers.js';
 export { applyVerdicts } from './reasoning.js';
 export { scanProject, scanFiles } from './runner.js';
 export { applyEdits, collectFixes } from './fixes.js';
+export { runtimeScan, correlate, runCustomChecks } from './runtime/index.js';
+export type { RuntimeScanOpts } from './runtime/index.js';
