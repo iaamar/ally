@@ -5,11 +5,13 @@ import type {
 } from '@babel/types';
 import type { NodePath, TraverseOptions } from '@babel/traverse';
 import * as parse5 from 'parse5';
+import { createRequire } from 'node:module';
 import type { SourceLocation } from '@ally/shared';
 import type { Elem, Attr, ParsedDoc } from './types.js';
 
+const require = createRequire(import.meta.url);
+
 // Dynamic import workaround for @babel/traverse CJS/ESM interop
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 let _traverseFn: (
   parent: Node,
   opts?: TraverseOptions,
@@ -18,7 +20,6 @@ let _traverseFn: (
 // Lazy-init to handle CJS default export interop
 function getTraverse(): typeof _traverseFn {
   if (!_traverseFn) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('@babel/traverse');
     _traverseFn = typeof mod === 'function' ? mod : (mod.default ?? mod);
   }

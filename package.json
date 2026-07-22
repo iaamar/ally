@@ -2,6 +2,6 @@
   "name": "ally-monorepo", "private": true, "license": "UNLICENSED", "type": "module",
   "engines": { "node": ">=20" },
   "packageManager": "pnpm@9.15.0",
-  "scripts": { "build": "turbo run build", "test": "turbo run test", "typecheck": "turbo run typecheck" },
+  "scripts": { "build": "turbo run build", "test": "turbo run test", "typecheck": "turbo run typecheck", "dogfood": "node scripts/dogfood.mjs" },
   "devDependencies": { "turbo": "^2.3.0", "typescript": "~5.6.3", "vitest": "^3.0.0" }
 }
