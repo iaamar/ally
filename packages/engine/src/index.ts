@@ -4,3 +4,6 @@ export { discoverFiles } from './discover.js';
 export { loadConfig } from './config.js';
 export { fingerprintOf, clusterKeyOf } from './fingerprint.js';
 export { prioritize, summarize } from './prioritize.js';
+export { RULES, draftToFinding } from './rules/index.js';
+export type { Rule, RuleMeta, FindingDraft, RuleCtx } from './rules/index.js';
+export * from './rules/helpers.js';
