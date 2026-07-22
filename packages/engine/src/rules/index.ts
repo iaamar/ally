@@ -9,6 +9,9 @@ import { interactiveRules } from './interactive.js';
 import { ariaRules } from './aria.js';
 import { structureRules } from './structure.js';
 import { documentRules } from './document.js';
+import { aria2Rules } from './aria2.js';
+import { tableRules } from './tables.js';
+import { miscRules } from './misc.js';
 
 /* ── Rule framework interfaces ── */
 
@@ -54,6 +57,9 @@ export const RULES: Rule[] = [
   ...ariaRules,
   ...structureRules,
   ...documentRules,
+  ...aria2Rules,
+  ...tableRules,
+  ...miscRules,
 ];
 
 /* ── draftToFinding builder ── */

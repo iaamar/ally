@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Bad Wave D</title>
+  <meta http-equiv="refresh" content="5;url=/redirect">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+</head>
+<body aria-hidden="true">
+  <!-- scope-on-non-th -->
+  <table>
+    <tr><td scope="col">Header</td><td>Data</td></tr>
+    <tr><td>Row 2 Col 1</td><td>Row 2 Col 2</td></tr>
+  </table>
+
+  <!-- table-missing-headers: table with 2+ rows, no th -->
+  <table>
+    <tr><td>A</td><td>B</td></tr>
+    <tr><td>C</td><td>D</td></tr>
+    <tr><td>E</td><td>F</td></tr>
+  </table>
+
+  <!-- list-item-parent: li outside ul/ol -->
+  <div>
+    <li>Orphan item</li>
+  </div>
+
+  <!-- aria-unsupported-elements: style with role -->
+  <style role="banner"></style>
+
+  <!-- no-aria-hidden-on-body is on body above -->
+</body>
+</html>
