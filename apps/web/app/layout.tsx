@@ -20,7 +20,7 @@ export default function RootLayout({
           <strong>Ally</strong>
           <nav aria-label="Main navigation">
             <a href="/">Projects</a>
-            <a href="/keys">API Keys</a>
+            <a href="/settings/keys">API Keys</a>
             <form action="/auth/signout" method="post" style={{ display: 'inline' }}>
               <button type="submit">Sign out</button>
             </form>
