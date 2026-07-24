@@ -48,11 +48,12 @@ export function buildServer(state: SessionState): McpServer {
     async ({ path, files }) => {
       const root = path ?? state.root ?? process.cwd();
       state.root = root;
-      state.report = await scanFiles(root, files, {
+      const report = await scanFiles(root, files, {
         targetLevel: state.policy.targetLevel,
         ignoreRules: state.policy.ignoreRules,
       });
-      return { content: [{ type: 'text', text: formatSummary(state.report) }] };
+      state.report = report;
+      return { content: [{ type: 'text', text: formatSummary(report) }] };
     },
   );
 
@@ -194,7 +195,7 @@ export function buildServer(state: SessionState): McpServer {
     async ({ projectName }) => {
       const report = requireReport(state);
       const apiKey = process.env['ALLY_API_KEY'];
-      const baseUrl = process.env['ALLY_API_URL'] ?? 'https://web-azure-kappa-78.vercel.app';
+      const baseUrl = process.env['ALLY_API_URL'] ?? 'https://ally-web-black.vercel.app';
 
       if (!apiKey || !baseUrl) {
         return {

@@ -79,7 +79,7 @@ function buildDb(supabase: ReturnType<typeof createClient<Database>>): IngestDb 
 
 export async function POST(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !serviceKey) {
     return NextResponse.json({ error: 'server misconfigured' }, { status: 500 });

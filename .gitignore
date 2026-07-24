@@ -6,3 +6,11 @@ dist/
 coverage/
 *.tsbuildinfo
 .superpowers/
+.vercel
+.env*
+
+# Local MCP config (contains ALLY_API_KEY)
+.mcp.json
+
+# Local Claude Code tooling/settings
+.claude/
