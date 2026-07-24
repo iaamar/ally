@@ -2,9 +2,16 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { TrendChart } from '@/components/TrendChart';
 import { SeverityBars } from '@/components/SeverityBars';
+import { StatTile } from '@/components/StatTile';
 
 interface Props {
   params: Promise<{ projectId: string }>;
+}
+
+const SEVERITY_ORDER = ['blocker', 'critical', 'serious', 'moderate', 'minor'] as const;
+
+function scoreStatus(score: number): 'good' | 'warn' | 'bad' {
+  return score >= 90 ? 'good' : score >= 70 ? 'warn' : 'bad';
 }
 
 export default async function ProjectOverview({ params }: Props) {
@@ -27,7 +34,7 @@ export default async function ProjectOverview({ params }: Props) {
   // Recent scans (last 10)
   const { data: scans } = await supabase
     .from('scans')
-    .select('id, score, created_at, summary')
+    .select('id, score, created_at, files_scanned, summary')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -35,7 +42,7 @@ export default async function ProjectOverview({ params }: Props) {
   const latestScan = scans?.[0] ?? null;
 
   // Severity counts from latest scan's findings
-  let severityCounts: Record<string, number> = {};
+  const severityCounts: Record<string, number> = {};
   if (latestScan) {
     const { data: findings } = await supabase
       .from('findings')
@@ -58,37 +65,92 @@ export default async function ProjectOverview({ params }: Props) {
       score: s.score,
     }));
 
+  const totalFindings = Object.values(severityCounts).reduce((a, b) => a + b, 0);
+  const topSeverity = SEVERITY_ORDER.find((s) => (severityCounts[s] ?? 0) > 0) ?? '—';
+
   return (
     <section>
       <h1>{project.name}</h1>
+      <p className="text-muted" style={{ marginBottom: '0.25rem' }}>
+        <a href="/">Projects</a> / {project.name}
+      </p>
 
       {latestScan ? (
-        <p style={{ fontSize: '2rem', fontWeight: 700, margin: '0.5rem 0 1.5rem' }}>
-          Score: {latestScan.score}
-        </p>
+        <>
+          <div className="kpi-grid">
+            <StatTile
+              label="Accessibility score"
+              value={latestScan.score}
+              status={scoreStatus(latestScan.score)}
+              series={trendScores.map((s) => s.score)}
+              seriesLabel="Score over recent scans"
+              meta={`as of ${new Date(latestScan.created_at).toLocaleDateString()}`}
+            />
+            <StatTile label="Files scanned" value={latestScan.files_scanned ?? 0} />
+            <StatTile
+              label="Open findings"
+              value={totalFindings}
+              status={totalFindings === 0 ? 'good' : totalFindings > 20 ? 'bad' : 'warn'}
+            />
+            <StatTile
+              label="Top severity"
+              value={topSeverity}
+              status={
+                topSeverity === '—'
+                  ? 'good'
+                  : topSeverity === 'blocker' || topSeverity === 'critical'
+                    ? 'bad'
+                    : topSeverity === 'serious' || topSeverity === 'moderate'
+                      ? 'warn'
+                      : 'neutral'
+              }
+            />
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Severity breakdown</h2>
+            <SeverityBars counts={severityCounts} />
+          </div>
+
+          <div className="card" style={{ marginTop: '1rem' }}>
+            <h2 style={{ marginTop: 0 }}>Score trend</h2>
+            <TrendChart scores={trendScores} />
+          </div>
+
+          <div className="card" style={{ marginTop: '1rem' }}>
+            <h2 style={{ marginTop: 0 }}>Recent scans</h2>
+            {scans && scans.length > 0 ? (
+              <ul className="list-plain" style={{ listStyle: 'none' }}>
+                {scans.map((s) => (
+                  <li
+                    key={s.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                      padding: '0.6rem 0',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    <a href={`/p/${projectId}/scans/${s.id}`}>
+                      {new Date(s.created_at).toLocaleString()}
+                    </a>
+                    <span
+                      className={`stat__value stat__value--${scoreStatus(s.score)}`}
+                      style={{ fontSize: '0.95rem', fontWeight: 650 }}
+                    >
+                      {s.score}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty">No scans yet.</p>
+            )}
+          </div>
+        </>
       ) : (
-        <p>No scans yet.</p>
-      )}
-
-      <h2>Severity Breakdown</h2>
-      <SeverityBars counts={severityCounts} />
-
-      <h2 style={{ marginTop: '2rem' }}>Score Trend</h2>
-      <TrendChart scores={trendScores} />
-
-      <h2 style={{ marginTop: '2rem' }}>Recent Scans</h2>
-      {scans && scans.length > 0 ? (
-        <ul style={{ listStyle: 'none' }}>
-          {scans.map((s) => (
-            <li key={s.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-              <a href={`/p/${projectId}/scans/${s.id}`}>
-                {new Date(s.created_at).toLocaleString()} &mdash; Score: {s.score}
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No scans yet.</p>
+        <p className="empty">No scans yet.</p>
       )}
     </section>
   );

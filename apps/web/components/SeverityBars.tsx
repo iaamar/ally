@@ -1,9 +1,9 @@
-const SEVERITY_COLORS: Record<string, string> = {
-  blocker: '#991b1b',
-  critical: '#dc2626',
-  serious: '#ea580c',
-  moderate: '#ca8a04',
-  minor: '#65a30d',
+const SEVERITY_VAR: Record<string, string> = {
+  blocker: 'var(--sev-blocker)',
+  critical: 'var(--sev-critical)',
+  serious: 'var(--sev-serious)',
+  moderate: 'var(--sev-moderate)',
+  minor: 'var(--sev-minor)',
 };
 
 const SEVERITY_ORDER = ['blocker', 'critical', 'serious', 'moderate', 'minor'] as const;
@@ -15,13 +15,13 @@ interface SeverityBarsProps {
 export function SeverityBars({ counts }: SeverityBarsProps) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    return <p>No findings.</p>;
+    return <p className="empty">No findings.</p>;
   }
 
   return (
     <div>
       <div
-        style={{ display: 'flex', height: '1.5rem', borderRadius: '4px', overflow: 'hidden' }}
+        style={{ display: 'flex', height: '1.5rem', borderRadius: '6px', overflow: 'hidden' }}
         role="img"
         aria-label={`Severity breakdown: ${SEVERITY_ORDER.map(
           (s) => `${s} ${counts[s] ?? 0}`,
@@ -36,7 +36,7 @@ export function SeverityBars({ counts }: SeverityBarsProps) {
               key={severity}
               style={{
                 width: `${pct}%`,
-                background: SEVERITY_COLORS[severity],
+                background: SEVERITY_VAR[severity],
                 minWidth: '2px',
               }}
               title={`${severity}: ${count}`}
@@ -44,12 +44,24 @@ export function SeverityBars({ counts }: SeverityBarsProps) {
           );
         })}
       </div>
-      <ul style={{ display: 'flex', gap: '1rem', listStyle: 'none', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+      <ul
+        className="list-plain"
+        style={{
+          display: 'flex',
+          gap: '1.25rem',
+          listStyle: 'none',
+          marginTop: '0.75rem',
+          flexWrap: 'wrap',
+        }}
+      >
         {SEVERITY_ORDER.map((severity) => {
           const count = counts[severity] ?? 0;
           if (count === 0) return null;
           return (
-            <li key={severity} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem' }}>
+            <li
+              key={severity}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+            >
               <span
                 aria-hidden="true"
                 style={{
@@ -57,10 +69,11 @@ export function SeverityBars({ counts }: SeverityBarsProps) {
                   width: '0.75rem',
                   height: '0.75rem',
                   borderRadius: '50%',
-                  background: SEVERITY_COLORS[severity],
+                  background: SEVERITY_VAR[severity],
                 }}
               />
-              {severity}: {count}
+              <span style={{ color: 'var(--muted)' }}>{severity}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{count}</span>
             </li>
           );
         })}

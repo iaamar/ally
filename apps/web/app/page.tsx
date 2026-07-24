@@ -1,5 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { StatTile } from '@/components/StatTile';
+
+function scoreStatus(score: number): 'good' | 'warn' | 'bad' {
+  return score >= 90 ? 'good' : score >= 70 ? 'warn' : 'bad';
+}
+
+function scoreClass(score: number | null): string {
+  if (score === null) return 'stat__value';
+  const s = scoreStatus(score);
+  return `stat__value stat__value--${s}`;
+}
 
 export default async function Home() {
   const supabase = await createClient();
@@ -21,7 +32,7 @@ export default async function Home() {
     return (
       <section>
         <h1>Projects</h1>
-        <p>No projects yet &mdash; sync a scan from the CLI.</p>
+        <p className="empty">No projects yet &mdash; sync a scan from the CLI.</p>
       </section>
     );
   }
@@ -36,7 +47,7 @@ export default async function Home() {
     return (
       <section>
         <h1>Projects</h1>
-        <p>No projects yet &mdash; sync a scan from the CLI.</p>
+        <p className="empty">No projects yet &mdash; sync a scan from the CLI.</p>
       </section>
     );
   }
@@ -71,29 +82,76 @@ export default async function Home() {
     }),
   );
 
+  // KPI aggregates (derived from already-fetched rows — no extra queries)
+  const scored = projectRows.filter((p) => p.latestScore !== null);
+  const avgScore =
+    scored.length > 0
+      ? Math.round(scored.reduce((a, p) => a + (p.latestScore as number), 0) / scored.length)
+      : null;
+  const totalFindings = projectRows.reduce((a, p) => a + p.totalFindings, 0);
+  const lastScanDate = projectRows
+    .map((p) => p.lastScan)
+    .filter(Boolean)
+    .sort()
+    .at(-1) as string | undefined;
+
   return (
     <section>
       <h1>Projects</h1>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+      <p className="text-muted" style={{ marginBottom: '0.5rem' }}>
+        Accessibility health across your synced projects.
+      </p>
+
+      <div className="kpi-grid">
+        <StatTile label="Projects" value={projectRows.length} />
+        <StatTile
+          label="Avg score"
+          value={avgScore !== null ? avgScore : '—'}
+          status={avgScore !== null ? scoreStatus(avgScore) : 'neutral'}
+          meta={avgScore !== null ? `across ${scored.length} scanned` : 'no scans yet'}
+        />
+        <StatTile
+          label="Open findings"
+          value={totalFindings}
+          status={totalFindings === 0 ? 'good' : totalFindings > 20 ? 'bad' : 'warn'}
+        />
+        <StatTile
+          label="Last scan"
+          value={lastScanDate ? new Date(lastScanDate).toLocaleDateString() : '—'}
+          meta={lastScanDate ? new Date(lastScanDate).toLocaleTimeString() : undefined}
+        />
+      </div>
+
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table>
+          <caption className="visually-hidden">Projects and their latest scan results</caption>
           <thead>
             <tr>
-              <th style={thStyle}>Project Name</th>
-              <th style={thStyle}>Latest Score</th>
-              <th style={thStyle}>Total Findings</th>
-              <th style={thStyle}>Last Scan</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Project</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Latest score</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Findings</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Last scan</th>
             </tr>
           </thead>
           <tbody>
             {projectRows.map((p) => (
               <tr key={p.id}>
-                <td style={tdStyle}>
+                <td style={{ padding: '0.75rem 1rem' }}>
                   <a href={`/p/${p.id}`}>{p.name}</a>
                 </td>
-                <td style={tdStyle}>{p.latestScore !== null ? p.latestScore : '--'}</td>
-                <td style={tdStyle}>{p.totalFindings}</td>
-                <td style={tdStyle}>
-                  {p.lastScan ? new Date(p.lastScan).toLocaleDateString() : '--'}
+                <td style={{ padding: '0.75rem 1rem' }}>
+                  <span
+                    className={scoreClass(p.latestScore)}
+                    style={{ fontSize: '1rem', fontWeight: 650 }}
+                  >
+                    {p.latestScore !== null ? p.latestScore : '—'}
+                  </span>
+                </td>
+                <td style={{ padding: '0.75rem 1rem', fontVariantNumeric: 'tabular-nums' }}>
+                  {p.totalFindings}
+                </td>
+                <td style={{ padding: '0.75rem 1rem' }} className="text-muted">
+                  {p.lastScan ? new Date(p.lastScan).toLocaleDateString() : '—'}
                 </td>
               </tr>
             ))}
@@ -103,15 +161,3 @@ export default async function Home() {
     </section>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '0.5rem 0.75rem',
-  borderBottom: '2px solid var(--border)',
-  fontWeight: 600,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '0.5rem 0.75rem',
-  borderBottom: '1px solid var(--border)',
-};

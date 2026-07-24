@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string }>;
 }) {
   async function signIn(formData: FormData) {
     'use server';
@@ -29,9 +29,16 @@ export default function LoginPage({
   }
 
   return (
-    <section>
-      <h1>Sign in to Ally</h1>
-      <LoginForm action={signIn} searchParams={searchParams} />
+    <section
+      style={{ display: 'flex', justifyContent: 'center', paddingTop: '3rem' }}
+    >
+      <div className="card card--pad-lg" style={{ width: '100%', maxWidth: '26rem' }}>
+        <h1>Sign in to Ally</h1>
+        <p className="text-muted" style={{ marginBottom: '1.25rem' }}>
+          We&rsquo;ll email you a magic link &mdash; no password needed.
+        </p>
+        <LoginForm action={signIn} searchParams={searchParams} />
+      </div>
     </section>
   );
 }
@@ -41,13 +48,24 @@ async function LoginForm({
   searchParams,
 }: {
   action: (formData: FormData) => Promise<void>;
-  searchParams: Promise<{ sent?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string }>;
 }) {
   const params = await searchParams;
   return (
     <>
       {params.sent && (
-        <p role="status">Check your email for a sign-in link.</p>
+        <p role="status" className="notice" style={{ marginTop: 0 }}>
+          Check your email for a sign-in link.
+        </p>
+      )}
+      {params.error && (
+        <p
+          role="alert"
+          className="notice"
+          style={{ marginTop: 0, borderLeftColor: 'var(--bad)', color: 'var(--bad)' }}
+        >
+          {params.error}
+        </p>
       )}
       <form action={action}>
         <div className="form-group">
@@ -61,7 +79,9 @@ async function LoginForm({
             placeholder="you@example.com"
           />
         </div>
-        <button type="submit">Send magic link</button>
+        <button type="submit" className="btn-primary" style={{ width: '100%' }}>
+          Send magic link
+        </button>
       </form>
     </>
   );
