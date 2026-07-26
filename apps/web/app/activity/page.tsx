@@ -4,6 +4,7 @@ import { loadActivitySnapshot } from '@/lib/activity-data';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Traces — Ally' };
 
 export default async function ActivityPage() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ export default async function ActivityPage() {
     <section>
       <div className="page-heading">
         <div>
-          <h1>MCP Activity</h1>
+          <h1>Traces</h1>
           <p className="text-muted">
             Live tool calls and remediation workflows across your organization.
           </p>

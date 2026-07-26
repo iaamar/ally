@@ -15,7 +15,7 @@ const NAVIGATION = [
   },
   {
     href: '/activity',
-    label: 'MCP Activity',
+    label: 'Traces',
     icon: <><path d="M2 11.5h2.2l1.5-4 2.2 6 1.7-8 1.4 4h3" /><path d="M2 2.75h12v10.5H2z" /></>,
   },
   {

@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { AllyMark } from '@/components/AllyMark';
+import { filterCitedSources } from '@/lib/chat-sources';
 
 interface FindingContext {
   wcag: string[];
@@ -33,6 +37,7 @@ const MIN_WIDTH = 340;
 const MAX_WIDTH = 720;
 const DEFAULT_WIDTH = 440;
 const WIDTH_KEY = 'ally.assistant.width';
+const MARKDOWN_PLUGINS = [remarkGfm];
 
 export function AllyChatPanel() {
   const [open, setOpen] = useState(false);
@@ -283,7 +288,7 @@ export function AllyChatPanel() {
 
           <div className="chat-panel__header">
             <div className="chat-panel__title">
-              <span className="chat-panel__icon" aria-hidden="true">A</span>
+              <AllyMark />
               <span>Ally Assistant</span>
             </div>
             <button
@@ -331,36 +336,39 @@ export function AllyChatPanel() {
               </div>
             )}
 
-            {messages.map((message, index) => (
-              <article
-                className={`chat-message chat-message--${message.role}`}
-                key={`${message.role}-${index}`}
-              >
-                <p className="chat-message__role">
-                  {message.role === 'user' ? 'You' : 'Ally'}
-                </p>
-                {message.role === 'assistant' ? (
-                  <Markdown text={message.content} />
-                ) : (
-                  <p>{message.content}</p>
-                )}
-                {message.sources && message.sources.length > 0 && (
-                  <ul className="chat-sources" aria-label="Sources">
-                    {message.sources.map((source) => (
-                      <li key={`${source.label}-${source.url}`}>
-                        {source.url ? (
-                          <a href={source.url} target="_blank" rel="noreferrer">
-                            {source.label} · {source.title ?? source.criterion ?? 'WCAG source'}
-                          </a>
-                        ) : (
-                          <span>{source.label} · {source.title ?? source.criterion}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
+            {messages.map((message, index) => {
+              const sources = filterCitedSources(message.content, message.sources);
+              return (
+                <article
+                  className={`chat-message chat-message--${message.role}`}
+                  key={`${message.role}-${index}`}
+                >
+                  <p className="chat-message__role">
+                    {message.role === 'user' ? 'You' : 'Ally'}
+                  </p>
+                  {message.role === 'assistant' ? (
+                    <Markdown text={message.content} />
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
+                  {sources.length > 0 && (
+                    <ul className="chat-sources" aria-label="Sources">
+                      {sources.map((source) => (
+                        <li key={`${source.label}-${source.url}`}>
+                          {source.url ? (
+                            <a href={source.url} target="_blank" rel="noreferrer">
+                              {source.label} · {source.title ?? source.criterion ?? 'WCAG source'}
+                            </a>
+                          ) : (
+                            <span>{source.label} · {source.title ?? source.criterion}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              );
+            })}
 
             {loading && !messages.at(-1)?.content && (
               <div className="chat-loading" role="status">
@@ -413,7 +421,7 @@ export function AllyChatPanel() {
         aria-expanded={open}
         aria-controls="ally-assistant"
       >
-        <span className="assistant-launcher__mark" aria-hidden="true">A</span>
+        <AllyMark />
         <span>Assistant</span>
       </button>
       {panel}
@@ -422,52 +430,11 @@ export function AllyChatPanel() {
 }
 
 function Markdown({ text }: { text: string }) {
-  const blocks = text.split(/```/);
-
   return (
     <div className="chat-response">
-      {blocks.map((block, index) => {
-        if (index % 2 === 1) {
-          const code = block.replace(/^[\w-]*\n/, '').trimEnd();
-          return <pre key={index}><code>{code}</code></pre>;
-        }
-
-        return block
-          .split(/\n{2,}/)
-          .filter((paragraph) => paragraph.trim())
-          .map((paragraph, paragraphIndex) => {
-            const lines = paragraph.split('\n').filter((line) => line.trim());
-            const list = lines.every((line) => /^\s*(?:[-*]|\d+\.)\s+/.test(line));
-            if (list) {
-              return (
-                <ul key={`${index}-${paragraphIndex}`}>
-                  {lines.map((line, lineIndex) => (
-                    <li key={lineIndex}>
-                      {inlineMarkdown(line.replace(/^\s*(?:[-*]|\d+\.)\s+/, ''))}
-                    </li>
-                  ))}
-                </ul>
-              );
-            }
-            return (
-              <p key={`${index}-${paragraphIndex}`}>
-                {inlineMarkdown(paragraph)}
-              </p>
-            );
-          });
-      })}
+      <ReactMarkdown remarkPlugins={MARKDOWN_PLUGINS} skipHtml>
+        {text}
+      </ReactMarkdown>
     </div>
   );
-}
-
-function inlineMarkdown(text: string): React.ReactNode[] {
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={index}>{part.slice(1, -1)}</code>;
-    }
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>;
-    }
-    return part;
-  });
 }

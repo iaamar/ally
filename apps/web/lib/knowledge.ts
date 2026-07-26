@@ -20,6 +20,7 @@ export interface KnowledgeResult {
 interface SearchOptions {
   version?: string;
   levels?: string[];
+  criteria?: string[];
   matchCount?: number;
   signal?: AbortSignal;
 }
@@ -134,6 +135,7 @@ async function lexicalFallback(
       match_count: matchCount,
       filter_version: options.version ?? null,
       filter_levels: options.levels ?? null,
+      filter_criteria: options.criteria ?? null,
     }),
     signal: options.signal,
   });
@@ -159,6 +161,12 @@ async function lexicalFallback(
     fallbackUrl.searchParams.set(
       'conformance_level',
       `in.(${options.levels.map((level) => `"${level}"`).join(',')})`,
+    );
+  }
+  if (options.criteria?.length) {
+    fallbackUrl.searchParams.set(
+      'criterion_id',
+      `in.(${options.criteria.map((criterion) => `"${criterion}"`).join(',')})`,
     );
   }
   const fallback = await fetchImpl(fallbackUrl, {
@@ -219,6 +227,7 @@ export async function searchWcagKnowledge(
             match_count: matchCount,
             filter_version: options.version ?? null,
             filter_levels: options.levels ?? null,
+            filter_criteria: options.criteria ?? null,
           }),
           signal: options.signal,
         }).catch(() => null);

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AllyMark } from '@/components/AllyMark';
 import { SkipLink } from '@/components/SkipLink';
 import { AllyChatPanel } from '@/components/AllyChatPanel';
 import { Sidebar } from '@/components/Sidebar';
@@ -25,9 +26,7 @@ export default function RootLayout({
         <div className="app">
           <header className="topbar">
             <a className="brand" href="/">
-              <span className="brand__mark" aria-hidden="true">
-                A
-              </span>
+              <AllyMark />
               <span className="brand__name">Ally</span>
             </a>
             <div className="topbar__actions">

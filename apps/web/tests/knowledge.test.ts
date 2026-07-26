@@ -44,13 +44,16 @@ describe('searchWcagKnowledge', () => {
 
     const result = await searchWcagKnowledge(
       'minimum contrast',
-      { version: '2.2', levels: ['AA'] },
+      { version: '2.2', levels: ['AA'], criteria: ['1.4.3'] },
       fetchMock,
     );
 
     expect(result.mode).toBe('lexical_fallback');
     expect(result.results[0].citation.criterion).toBe('1.4.3');
     expect(String(fetchMock.mock.calls[0][0])).toContain('/rpc/lexical_search_wcag');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      filter_criteria: ['1.4.3'],
+    });
     expect(
       fetchMock.mock.calls.some(([request]) => String(request).includes('/functions/v1/')),
     ).toBe(false);
@@ -79,7 +82,7 @@ describe('searchWcagKnowledge', () => {
 
     const result = await searchWcagKnowledge(
       'minimum contrast',
-      { version: '2.2', levels: ['AA'] },
+      { version: '2.2', levels: ['AA'], criteria: ['1.4.3'] },
       fetchMock,
     );
 
@@ -95,6 +98,9 @@ describe('searchWcagKnowledge', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).input)
       .toBe('minimum contrast');
     expect(String(fetchMock.mock.calls[1][0])).toContain('/rpc/hybrid_search_wcag');
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      filter_criteria: ['1.4.3'],
+    });
   });
 
   it('does not call the legacy Edge Function when the dedicated service fails', async () => {
