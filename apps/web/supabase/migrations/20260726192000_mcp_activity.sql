@@ -44,7 +44,7 @@ create index if not exists mcp_runs_contract_idx
   on public.mcp_runs (org_id, contract_id);
 create unique index if not exists mcp_runs_org_request_uidx
   on public.mcp_runs (org_id, request_id)
-  where request_id is not null;
+  where request_id is not null and kind = 'remediation';
 
 create table if not exists public.mcp_run_events (
   id bigint generated always as identity primary key,
