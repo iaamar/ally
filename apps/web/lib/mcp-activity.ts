@@ -222,7 +222,13 @@ export async function runWithMcpActivity(
     async workflowEvent(workflowRunId, stage, status, message, progress, detail) {
       const terminal = ['succeeded', 'failed', 'cancelled', 'escalated'].includes(status);
       const now = new Date().toISOString();
+      const { data: persisted } = await platformClient()
+        .from('mcp_runs')
+        .select('progress')
+        .eq('id', workflowRunId)
+        .maybeSingle();
       const nextProgress = Math.max(
+        Number(persisted?.progress ?? 0),
         workflowProgress.get(workflowRunId) ?? 0,
         Math.min(100, progress),
       );
