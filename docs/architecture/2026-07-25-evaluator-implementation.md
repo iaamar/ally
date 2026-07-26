@@ -20,7 +20,7 @@ The active sequence is:
 The MCP loads a central environment file only when `ALLY_ENV_FILE` explicitly
 names it. It never guesses or reads the target project's secrets. The
 `get_ally_health` tool reports configured variable names, never values, and
-checks knowledge retrieval, BGE, and optional Gemma availability.
+checks knowledge retrieval and BGE availability.
 
 ## Contract gates
 
@@ -59,10 +59,10 @@ Required:
 
 - a reachable BGE service preserving the exact 1,024-dimensional
   `BAAI/bge-large-en-v1.5` contract;
-- a GPU-backed Gemma-compatible OpenAI chat endpoint, or a hosted LLM provider;
+- a hosted LLM provider;
 - TLS endpoints and separate bearer tokens for embeddings and completion;
 - Vercel variables `BGE_EMBEDDING_URL`, `BGE_EMBEDDING_TOKEN`,
-  `GEMMA_BASE_URL`, `GEMMA_MODEL`, and any provider fallback key;
+  `GROQ_API_KEY`, `GROQ_MODEL`, and any provider fallback key;
 - request timeouts, concurrency limits, health checks, logs, latency/error
   metrics, and a monthly cost ceiling;
 - network restrictions so only the application backend can call inference.

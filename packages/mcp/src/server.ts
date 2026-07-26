@@ -109,7 +109,7 @@ export function buildServer(state: SessionState): McpServer {
 
   server.tool(
     'get_ally_health',
-    'Check MCP environment bootstrap, Supabase knowledge retrieval, BGE embeddings, and optional Gemma completion',
+    'Check MCP environment bootstrap, Supabase knowledge retrieval, and BGE embeddings',
     {},
     readPlatform,
     async () => {

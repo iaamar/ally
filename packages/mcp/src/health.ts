@@ -23,7 +23,6 @@ export interface AllyHealth {
   components: {
     knowledge: HealthComponent;
     bge: HealthComponent;
-    gemma: HealthComponent;
   };
 }
 
@@ -106,9 +105,8 @@ export async function checkAllyHealth(
 ): Promise<AllyHealth> {
   const platformManaged = Boolean(env('ALLY_API_URL') && env('ALLY_API_KEY'));
   const bgeBase = env('BGE_EMBEDDING_URL')?.replace(/\/+$/, '');
-  const gemmaBase = env('GEMMA_BASE_URL')?.replace(/\/+$/, '');
 
-  const [knowledge, bge, gemma] = await Promise.all([
+  const [knowledge, bge] = await Promise.all([
     checkKnowledge(fetchImpl),
     platformManaged
       ? Promise.resolve({
@@ -116,20 +114,13 @@ export async function checkAllyHealth(
           detail: 'BGE embeddings are managed by the Ally platform.',
         })
       : checkHttp('BGE embedding service', bgeBase ? `${bgeBase}/health/ready` : undefined, fetchImpl),
-    platformManaged
-      ? Promise.resolve({
-          status: 'unconfigured' as const,
-          detail: 'The host coding agent provides completion; no MCP completion service is required.',
-        })
-      : checkHttp('Gemma completion service', gemmaBase ? `${gemmaBase}/health` : undefined, fetchImpl),
   ]);
 
   const status =
     knowledge.status === 'unavailable' || knowledge.status === 'unconfigured'
       ? 'unavailable'
       : knowledge.status === 'degraded' ||
-          bge.status !== 'healthy' ||
-          (gemma.status !== 'healthy' && gemma.status !== 'unconfigured')
+          bge.status !== 'healthy'
         ? 'degraded'
         : 'healthy';
 
@@ -142,8 +133,6 @@ export async function checkAllyHealth(
     'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     'BGE_EMBEDDING_URL',
     'BGE_EMBEDDING_TOKEN',
-    'GEMMA_BASE_URL',
-    'GEMMA_MODEL',
   ];
 
   return {
@@ -153,6 +142,6 @@ export async function checkAllyHealth(
       bootstrap: getEnvironmentBootstrap(),
       configuredVariables: variableNames.filter((name) => Boolean(env(name))),
     },
-    components: { knowledge, bge, gemma },
+    components: { knowledge, bge },
   };
 }

@@ -11,14 +11,13 @@ export interface CompletionRequest {
 
 export interface CompletionResult {
   content: string;
-  provider: 'groq' | 'gemma' | 'anthropic';
+  provider: 'groq' | 'anthropic';
   model: string;
-  warning?: string;
 }
 
 export interface StreamingCompletionResult {
   chunks: AsyncIterable<string>;
-  provider: 'groq' | 'gemma' | 'anthropic';
+  provider: 'groq' | 'anthropic';
   model: string;
 }
 
@@ -30,10 +29,7 @@ export class NoCompletionProviderError extends Error {
 }
 
 function timeoutMs(): number {
-  const configured = Number(
-    process.env.LLM_REQUEST_TIMEOUT_MS ??
-    process.env.GEMMA_REQUEST_TIMEOUT_MS,
-  );
+  const configured = Number(process.env.LLM_REQUEST_TIMEOUT_MS);
   return Number.isFinite(configured) && configured >= 1_000
     ? Math.min(configured, 300_000)
     : 300_000;
@@ -99,48 +95,6 @@ async function completeWithGroq(
   return { content, provider: 'groq', model: data.model ?? groqModel() };
 }
 
-function gemmaHeaders(): HeadersInit {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const apiKey = process.env.GEMMA_API_KEY?.trim();
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  return headers;
-}
-
-async function completeWithGemma(
-  request: CompletionRequest,
-  fetchImpl: typeof fetch,
-): Promise<CompletionResult> {
-  const baseUrl = process.env.GEMMA_BASE_URL?.replace(/\/+$/, '');
-  if (!baseUrl) throw new NoCompletionProviderError('Gemma is not configured.');
-
-  const model = process.env.GEMMA_MODEL ?? 'gemma-3-4b-it';
-  const response = await fetchImpl(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: gemmaHeaders(),
-    signal: AbortSignal.timeout(timeoutMs()),
-    body: JSON.stringify({
-      model,
-      messages: openAiMessages(request),
-      stream: false,
-      temperature: 0.2,
-      max_tokens: Math.min(request.maxTokens ?? 400, 400),
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemma returned HTTP ${response.status}.`);
-  }
-
-  const data = await response.json() as {
-    model?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error('Gemma returned an empty response.');
-
-  return { content, provider: 'gemma', model: data.model ?? model };
-}
-
 async function* parseOpenAiSse(
   body: ReadableStream<Uint8Array>,
 ): AsyncGenerator<string> {
@@ -182,38 +136,6 @@ async function* parseOpenAiSse(
   }
 }
 
-export async function streamWithGemma(
-  request: CompletionRequest,
-  fetchImpl: typeof fetch = fetch,
-): Promise<StreamingCompletionResult> {
-  const baseUrl = process.env.GEMMA_BASE_URL?.replace(/\/+$/, '');
-  if (!baseUrl) throw new NoCompletionProviderError('Gemma is not configured.');
-
-  const model = process.env.GEMMA_MODEL ?? 'gemma-3-4b-it';
-  const response = await fetchImpl(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: gemmaHeaders(),
-    signal: AbortSignal.timeout(timeoutMs()),
-    body: JSON.stringify({
-      model,
-      messages: openAiMessages(request),
-      stream: true,
-      temperature: 0.2,
-      max_tokens: Math.min(request.maxTokens ?? 220, 300),
-    }),
-  });
-
-  if (!response.ok || !response.body) {
-    throw new Error(`Gemma returned HTTP ${response.status}.`);
-  }
-
-  return {
-    chunks: parseOpenAiSse(response.body),
-    provider: 'gemma',
-    model,
-  };
-}
-
 export async function streamWithGroq(
   request: CompletionRequest,
   fetchImpl: typeof fetch = fetch,
@@ -245,17 +167,6 @@ export async function streamWithConfiguredLlm(
     }
   }
 
-  if (process.env.GEMMA_BASE_URL) {
-    try {
-      return await streamWithGemma(request, fetchImpl);
-    } catch (error) {
-      console.error(
-        'Gemma streaming failed:',
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
-
   if (process.env.ANTHROPIC_API_KEY) {
     const completion = await completeWithAnthropic(request, fetchImpl);
     return {
@@ -268,7 +179,7 @@ export async function streamWithConfiguredLlm(
   }
 
   throw new NoCompletionProviderError(
-    'No completion provider is available. Add GROQ_API_KEY, GEMMA_BASE_URL, or ANTHROPIC_API_KEY.',
+    'No completion provider is available. Add GROQ_API_KEY or ANTHROPIC_API_KEY.',
   );
 }
 
@@ -323,27 +234,9 @@ export async function completeWithConfiguredLlm(
     }
   }
 
-  const gemmaConfigured = Boolean(process.env.GEMMA_BASE_URL);
-  let gemmaFailure: string | undefined;
-
-  if (gemmaConfigured) {
-    try {
-      return await completeWithGemma(request, fetchImpl);
-    } catch (error) {
-      gemmaFailure = error instanceof Error ? error.message : 'Gemma failed.';
-      console.error('Local Gemma completion failed:', gemmaFailure);
-    }
-  }
-
   if (process.env.ANTHROPIC_API_KEY) {
-    const result = await completeWithAnthropic(request, fetchImpl);
-    return gemmaFailure
-      ? { ...result, warning: `Local Gemma was unavailable; used Anthropic instead. ${gemmaFailure}` }
-      : result;
+    return completeWithAnthropic(request, fetchImpl);
   }
 
-  if (gemmaFailure) {
-    throw new NoCompletionProviderError(`Local Gemma was unavailable. ${gemmaFailure}`);
-  }
   throw new NoCompletionProviderError();
 }

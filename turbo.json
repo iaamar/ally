@@ -10,9 +10,11 @@
         "BGE_EMBEDDING_URL",
         "BGE_EMBEDDING_TOKEN",
         "BGE_REQUEST_TIMEOUT_MS",
-        "GEMMA_BASE_URL",
-        "GEMMA_MODEL",
-        "GEMMA_REQUEST_TIMEOUT_MS"
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_MODEL",
+        "LLM_REQUEST_TIMEOUT_MS"
       ]
     },
     "test": { "dependsOn": ["^build"] },

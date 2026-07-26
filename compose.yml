@@ -15,7 +15,6 @@ services:
       BGE_EMBEDDING_URL: http://embeddings:8080
       BGE_EMBEDDING_TOKEN: ${BGE_EMBEDDING_TOKEN:-easyas123}
       BGE_REQUEST_TIMEOUT_MS: ${BGE_REQUEST_TIMEOUT_MS:-30000}
-      GEMMA_BASE_URL: ""
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

@@ -102,7 +102,7 @@ Use the equivalent local stdio configuration with `ALLY_API_KEY`,
 | `configure_policy` | Set scanning policy (severity thresholds, ignored rules) |
 | `sync_report` | Sync scan report to Supabase dashboard |
 | `search_wcag_knowledge` | Search the WCAG corpus with hybrid retrieval and lexical fallback |
-| `get_ally_health` | Check env bootstrap, retrieval, BGE, and optional Gemma |
+| `get_ally_health` | Check env bootstrap, retrieval, and BGE |
 | `plan_remediation` | Create a bounded accessibility sprint contract from the current scan |
 | `report_harness_progress` | Publish implementation or repair progress to the live dashboard |
 | `evaluate_remediation` | Run static, optional runtime, and approved test gates |
@@ -154,8 +154,7 @@ Inside Docker, the web container talks to BGE over Docker DNS at
 internal URL and expose only the web service publicly through your reverse
 proxy. The Compose file binds the BGE host port to `127.0.0.1` for local
 debugging without exposing it publicly. Text completion uses the configured
-Groq API, so the obsolete local Gemma runtime and model-downloader containers
-are not part of the stack.
+Groq API, with Anthropic as an optional hosted fallback.
 
 When `BGE_EMBEDDING_URL` is set, the web app and MCP bypass the legacy
 `search-wcag` Edge Function: they generate a query vector with the dedicated
