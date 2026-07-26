@@ -81,7 +81,11 @@ describe('processIngest', () => {
       report: sampleReport,
     });
     expect(result.status).toBe(201);
-    expect(result.json).toEqual({ scanUrl: '/p/proj-1/scans/scan-1' });
+    expect(result.json).toEqual({
+      projectId: 'proj-1',
+      scanId: 'scan-1',
+      scanUrl: '/p/proj-1/scans/scan-1',
+    });
   });
 
   it('calls touchKey on valid key', async () => {

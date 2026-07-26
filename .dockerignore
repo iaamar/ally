@@ -1,0 +1,13 @@
+.git
+.next
+**/.next
+**/.turbo
+node_modules
+**/node_modules
+*.log
+.DS_Store
+.vercel
+coverage
+dist
+tmp
+**/.model-cache

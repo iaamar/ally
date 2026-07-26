@@ -7,6 +7,7 @@
 
 import type { Finding, Severity, WcagLevel, Modality } from '@ally/shared';
 import { fingerprintOf } from '../fingerprint.js';
+import { runCustomChecks } from './checks.js';
 
 export interface RuntimeScanOpts {
   timeoutMs?: number;
@@ -112,7 +113,8 @@ export async function runtimeScan(
       }
     }
 
-    return findings;
+    const customFindings = await runCustomChecks(page);
+    return [...findings, ...customFindings];
   } finally {
     await browser.close();
   }

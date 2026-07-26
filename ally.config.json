@@ -1,0 +1,15 @@
+{
+  "projectName": "EasyAllianceProduct",
+  "appUrl": "http://localhost:3000",
+  "evaluation": {
+    "runtime": true,
+    "routes": [
+      "/login"
+    ],
+    "timeoutMs": 30000,
+    "testScripts": [
+      "typecheck",
+      "test"
+    ]
+  }
+}

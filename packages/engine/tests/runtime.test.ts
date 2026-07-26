@@ -34,7 +34,9 @@ describe.skipIf(!process.env.ALLY_RUNTIME_TESTS)('runtimeScan – live', () => {
 
     expect(findings.length).toBeGreaterThan(0);
     expect(findings.every((f) => f.pass === 2)).toBe(true);
-    expect(findings.every((f) => f.ruleId.startsWith('axe/'))).toBe(true);
+    expect(
+      findings.every((f) => f.ruleId.startsWith('axe/') || f.ruleId.startsWith('runtime/')),
+    ).toBe(true);
     expect(findings.every((f) => f.confidence === 'certain')).toBe(true);
 
     // Should find the missing-alt image
@@ -44,7 +46,10 @@ describe.skipIf(!process.env.ALLY_RUNTIME_TESTS)('runtimeScan – live', () => {
     // Should find missing lang on <html>
     const htmlLang = findings.find((f) => f.ruleId === 'axe/html-has-lang');
     expect(htmlLang).toBeDefined();
-  });
+
+    const unreachable = findings.find((f) => f.ruleId === 'runtime/not-keyboard-reachable');
+    expect(unreachable).toBeDefined();
+  }, 20_000);
 
   it('runs custom checks on a page', async () => {
     const pw = await import('playwright');

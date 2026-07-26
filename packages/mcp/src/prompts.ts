@@ -2,6 +2,33 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
+    'remediation_harness',
+    'Plan, build, evaluate, and repair accessibility changes using a sprint contract',
+    () => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: [
+              'Run Ally as a remediation harness:',
+              '',
+              '1. Scan the project with `scan_project`.',
+              '2. Call `sync_report` so the baseline and live run are linked in the dashboard.',
+              '3. Create a bounded contract with `plan_remediation`.',
+              '4. For unfamiliar criteria, ground the implementation with `search_wcag_knowledge`.',
+              '5. Call `report_harness_progress` with implement/running, implement only the contracted goals, run relevant project tests, then report implement/completed.',
+              '6. Call `evaluate_remediation` to re-scan and check the contract.',
+              '7. If rejected, report repair/running, use its unresolved goals and new-findings report to repair the implementation, report repair/completed, then evaluate again.',
+              '8. When the evaluator passes, call `sync_evaluation` and finish.',
+            ].join('\n'),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.prompt(
     'a11y_review_workflow',
     'Guided accessibility scan, review, fix, and sync workflow',
     () => ({

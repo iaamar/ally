@@ -1,7 +1,10 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  devIndicators: false,
+  output: "standalone",
+  outputFileTracingRoot: path.join(process.cwd(), "../.."),
 };
 
 export default nextConfig;

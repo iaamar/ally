@@ -32,3 +32,25 @@ export const zScanReport = z.object({
   findings: z.array(zFinding), packets: z.array(zPacket), summary: zSummary,
 });
 export const zScanIngest = z.object({ projectName: z.string().min(1).max(120), report: zScanReport });
+
+export const zEvaluationIngest = z.object({
+  projectName: z.string().min(1).max(120),
+  scanId: z.string().uuid().optional(),
+  contract: z.object({
+    id: z.string().min(1).max(120),
+    baselineScanId: z.string().min(1).max(120),
+  }).passthrough(),
+  evaluation: z.object({
+    contractId: z.string().min(1).max(120),
+    attempt: z.number().int().positive(),
+    passed: z.boolean(),
+    gates: z.object({
+      contractedFindingsResolved: z.boolean(),
+      noFindingRegressions: z.boolean(),
+      runtimePassed: z.boolean(),
+      testsPassed: z.boolean(),
+    }),
+    runtime: z.unknown(),
+    tests: z.array(z.unknown()),
+  }).passthrough(),
+});

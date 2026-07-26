@@ -37,5 +37,12 @@ export async function processIngest(
   const scan = await db.insertScan(project.id, report as ScanReport);
   await db.insertFindings(scan.id, report.findings as Finding[]);
 
-  return { status: 201, json: { scanUrl: `/p/${project.id}/scans/${scan.id}` } };
+  return {
+    status: 201,
+    json: {
+      projectId: project.id,
+      scanId: scan.id,
+      scanUrl: `/p/${project.id}/scans/${scan.id}`,
+    },
+  };
 }

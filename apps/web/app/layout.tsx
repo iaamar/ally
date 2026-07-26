@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { SkipLink } from '@/components/SkipLink';
+import { AllyChatPanel } from '@/components/AllyChatPanel';
+import { Sidebar } from '@/components/Sidebar';
+import { ThemeToggle, THEME_INIT_SCRIPT } from '@/components/ThemeToggle';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +16,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <SkipLink />
         <div className="app">
@@ -23,9 +29,10 @@ export default function RootLayout({
                 A
               </span>
               <span className="brand__name">Ally</span>
-              <span className="brand__tag">Accessibility</span>
             </a>
             <div className="topbar__actions">
+              <ThemeToggle />
+              <AllyChatPanel />
               <form action="/auth/signout" method="post">
                 <button type="submit" className="btn-ghost">
                   Sign out
@@ -35,22 +42,7 @@ export default function RootLayout({
           </header>
 
           <div className="app__body">
-            <aside className="sidebar">
-              <nav aria-label="Primary" className="sidebar__nav">
-                <p className="nav-eyebrow" id="nav-eyebrow">
-                  Workspace
-                </p>
-                <a className="nav-link" href="/">
-                  Projects
-                </a>
-                <a className="nav-link" href="/settings/keys">
-                  API Keys
-                </a>
-              </nav>
-              <p className="sidebar__note">
-                Ally scans your app for WCAG 2.2 issues on every push.
-              </p>
-            </aside>
+            <Sidebar />
 
             <main id="main" className="content">
               {children}

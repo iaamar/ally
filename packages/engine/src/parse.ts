@@ -3,28 +3,19 @@ import type {
   JSXElement, FunctionDeclaration, VariableDeclarator,
   Node,
 } from '@babel/types';
-import type { NodePath, TraverseOptions } from '@babel/traverse';
+import traverseModule, {
+  type NodePath,
+  type TraverseOptions,
+} from '@babel/traverse';
 import * as parse5 from 'parse5';
-import { createRequire } from 'node:module';
 import type { SourceLocation } from '@ally/shared';
 import type { Elem, Attr, ParsedDoc } from './types.js';
 
-const require = createRequire(import.meta.url);
-
-// Dynamic import workaround for @babel/traverse CJS/ESM interop
-let _traverseFn: (
-  parent: Node,
-  opts?: TraverseOptions,
-) => void;
-
-// Lazy-init to handle CJS default export interop
-function getTraverse(): typeof _traverseFn {
-  if (!_traverseFn) {
-    const mod = require('@babel/traverse');
-    _traverseFn = typeof mod === 'function' ? mod : (mod.default ?? mod);
-  }
-  return _traverseFn;
-}
+const traverse = (
+  typeof traverseModule === 'function'
+    ? traverseModule
+    : (traverseModule as unknown as { default: typeof traverseModule }).default
+) as unknown as (parent: Node, opts?: TraverseOptions) => void;
 
 const ATTR_NAME_MAP: Record<string, string> = {
   className: 'class',
@@ -71,8 +62,6 @@ function parseJSX(file: string, source: string): ParsedDoc {
 
   const elements: Elem[] = [];
   const nodeToElem = new Map<object, Elem>();
-
-  const traverse = getTraverse();
 
   traverse(ast, {
     JSXElement(path: NodePath<JSXElement>) {

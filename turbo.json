@@ -1,6 +1,20 @@
 { "$schema": "https://turbo.build/schema.json",
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**"],
+      "env": [
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+        "SUPABASE_SECRET_KEY",
+        "BGE_EMBEDDING_URL",
+        "BGE_EMBEDDING_TOKEN",
+        "BGE_REQUEST_TIMEOUT_MS",
+        "GEMMA_BASE_URL",
+        "GEMMA_MODEL",
+        "GEMMA_REQUEST_TIMEOUT_MS"
+      ]
+    },
     "test": { "dependsOn": ["^build"] },
     "typecheck": { "dependsOn": ["^build"] }
   } }

@@ -1,14 +1,15 @@
-export type { Elem, Attr, ParsedDoc, AllyConfig } from './types.js';
+export type { Elem, Attr, ParsedDoc, AllyConfig, EvaluationConfig } from './types.js';
 export { parseSource } from './parse.js';
 export { discoverFiles } from './discover.js';
-export { loadConfig } from './config.js';
+export { DEFAULT_CONFIG, loadConfig } from './config.js';
 export { fingerprintOf, clusterKeyOf } from './fingerprint.js';
 export { prioritize, summarize } from './prioritize.js';
 export { RULES, draftToFinding } from './rules/index.js';
 export type { Rule, RuleMeta, FindingDraft, RuleCtx } from './rules/index.js';
 export * from './rules/helpers.js';
 export { applyVerdicts } from './reasoning.js';
-export { scanProject, scanFiles } from './runner.js';
+export { scanProject, scanFiles, scanSources } from './runner.js';
+export type { SourceFileInput } from './runner.js';
 export { applyEdits, collectFixes } from './fixes.js';
 export { runtimeScan, correlate, runCustomChecks } from './runtime/index.js';
 export type { RuntimeScanOpts } from './runtime/index.js';

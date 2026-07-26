@@ -21,21 +21,50 @@ async function setup(stateOverrides?: Partial<ReturnType<typeof createState>>) {
 }
 
 describe('MCP Server — tools', () => {
-  it('tools/list contains all 9 tools', async () => {
+  it('tools/list contains the full harness tool surface', async () => {
     const { client } = await setup();
     const result = await client.listTools();
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'configure_policy',
+      'evaluate_remediation',
       'explain_finding',
+      'get_ally_health',
       'get_findings',
       'get_fixes',
       'get_reasoning_packets',
+      'plan_remediation',
+      'report_harness_progress',
       'resolve_reasoning',
       'scan_files',
       'scan_project',
+      'search_wcag_knowledge',
+      'sync_evaluation',
       'sync_report',
     ]);
+  });
+
+  it('advertises accurate read and write annotations to MCP clients', async () => {
+    const { client } = await setup();
+    const result = await client.listTools();
+    const tools = Object.fromEntries(result.tools.map((tool) => [tool.name, tool]));
+
+    expect(tools.get_ally_health?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
+    expect(tools.get_findings?.annotations).toMatchObject({
+      readOnlyHint: true,
+      openWorldHint: false,
+    });
+    expect(tools.sync_report?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    });
   });
 
   it('scan_project on fixture returns score and packet count', async () => {
@@ -125,6 +154,32 @@ describe('MCP Server — tools', () => {
     expect(text).toContain('Resolved');
     expect(text).toContain('Score:');
   });
+
+  it('plans a remediation contract from the current report', async () => {
+    const { client } = await setup();
+    await client.callTool({ name: 'scan_project', arguments: { path: FIXTURE_ROOT } });
+    const result = await client.callTool({
+      name: 'plan_remediation',
+      arguments: { severities: ['blocker', 'critical'], limit: 3 },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    const data = JSON.parse(text);
+    expect(data.contract.id).toMatch(/^contract_/);
+    expect(data.contract.goals.length).toBeLessThanOrEqual(3);
+    expect(data.contract.maxNewFindings).toBe(0);
+  });
+
+  it('rejects evaluation when contracted findings were not changed', async () => {
+    const { client } = await setup();
+    await client.callTool({ name: 'scan_project', arguments: { path: FIXTURE_ROOT } });
+    await client.callTool({ name: 'plan_remediation', arguments: { limit: 1 } });
+    const result = await client.callTool({ name: 'evaluate_remediation', arguments: {} });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    const evaluation = JSON.parse(text);
+    expect(evaluation.passed).toBe(false);
+    expect(evaluation.unresolvedGoals).toHaveLength(1);
+  });
 });
 
 describe('MCP Server — prompts', () => {
@@ -134,6 +189,7 @@ describe('MCP Server — prompts', () => {
     const names = result.prompts.map((p) => p.name).sort();
     expect(names).toContain('a11y_review_workflow');
     expect(names).toContain('fix_no_brainers');
+    expect(names).toContain('remediation_harness');
   });
 });
 

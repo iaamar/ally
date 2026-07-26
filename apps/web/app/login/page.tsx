@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { resolveSiteUrl } from '@/lib/site-url';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -11,13 +12,18 @@ export default function LoginPage({
     'use server';
     const email = formData.get('email') as string;
     const headersList = await headers();
-    const origin = headersList.get('origin') ?? '';
+    const forwardedHost = headersList.get('x-forwarded-host');
+    const host = forwardedHost ?? headersList.get('host');
+    const protocol = headersList.get('x-forwarded-proto') ?? 'http';
+    const requestOrigin =
+      headersList.get('origin') ?? (host ? `${protocol}://${host}` : undefined);
+    const siteUrl = resolveSiteUrl(requestOrigin);
 
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: origin + '/auth/callback',
+        emailRedirectTo: `${siteUrl}/auth/callback`,
       },
     });
 

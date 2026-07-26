@@ -25,6 +25,13 @@ export interface ParsedDoc {
   source: string;
 }
 
+export interface EvaluationConfig {
+  runtime?: boolean;
+  routes?: string[];
+  timeoutMs?: number;
+  testScripts?: string[];
+}
+
 export interface AllyConfig {
   targetLevel: 'A' | 'AA' | 'AAA';
   ignoreRules: string[];
@@ -33,4 +40,5 @@ export interface AllyConfig {
   autofix: 'on' | 'off';
   appUrl?: string;
   projectName?: string;
+  evaluation?: EvaluationConfig;
 }

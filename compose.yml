@@ -1,0 +1,45 @@
+name: easyalliance
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: easyalliance-web:local
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      BGE_EMBEDDING_URL: http://embeddings:8080
+      BGE_EMBEDDING_TOKEN: ${BGE_EMBEDDING_TOKEN:-easyas123}
+      BGE_REQUEST_TIMEOUT_MS: ${BGE_REQUEST_TIMEOUT_MS:-30000}
+      GEMMA_BASE_URL: ""
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      embeddings:
+        condition: service_healthy
+    restart: unless-stopped
+
+  embeddings:
+    build:
+      context: services/bge
+      args:
+        BGE_MODEL_ID: BAAI/bge-large-en-v1.5
+        TORCH_VERSION: 2.7.1
+        BAKE_MODEL: "false"
+    image: ally-bge:local
+    environment:
+      BGE_DEVICE: cpu
+      BGE_BATCH_SIZE: "16"
+      BGE_MAX_CONCURRENCY: "2"
+      BGE_CACHE_SIZE: "2048"
+      BGE_WARMUP: "true"
+      EMBEDDING_SERVICE_TOKEN: ${BGE_EMBEDDING_TOKEN:-easyas123}
+    ports:
+      - "127.0.0.1:${BGE_PORT:-8080}:8080"
+    volumes:
+      - ${BGE_MODEL_CACHE:-./services/bge/.model-cache}:/models/huggingface
+    restart: unless-stopped

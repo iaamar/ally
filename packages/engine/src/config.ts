@@ -5,7 +5,7 @@ import type { AllyConfig } from './types.js';
 
 const CONFIG_FILENAME = 'ally.config.json';
 
-const DEFAULTS: AllyConfig = {
+export const DEFAULT_CONFIG: AllyConfig = {
   targetLevel: 'AA',
   ignoreRules: [],
   ignorePaths: [],
@@ -21,13 +21,19 @@ const allyConfigSchema = z.object({
   autofix: z.enum(['on', 'off']).optional(),
   appUrl: z.string().optional(),
   projectName: z.string().optional(),
+  evaluation: z.object({
+    runtime: z.boolean().optional(),
+    routes: z.array(z.string().min(1)).max(50).optional(),
+    timeoutMs: z.number().int().min(1_000).max(120_000).optional(),
+    testScripts: z.array(z.string().min(1)).max(20).optional(),
+  }).optional(),
 });
 
 export function loadConfig(root: string): AllyConfig {
   const configPath = join(root, CONFIG_FILENAME);
 
   if (!existsSync(configPath)) {
-    return { ...DEFAULTS };
+    return { ...DEFAULT_CONFIG };
   }
 
   const raw = readFileSync(configPath, 'utf-8');
@@ -44,5 +50,5 @@ export function loadConfig(root: string): AllyConfig {
     throw new Error(`Invalid ally.config.json: ${issues}`);
   }
 
-  return { ...DEFAULTS, ...result.data };
+  return { ...DEFAULT_CONFIG, ...result.data };
 }

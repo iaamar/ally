@@ -8,6 +8,9 @@ coverage/
 .superpowers/
 .vercel
 .env*
+**/.model-cache/
+**/__pycache__/
+*.pyc
 
 # Local MCP config (contains ALLY_API_KEY)
 .mcp.json

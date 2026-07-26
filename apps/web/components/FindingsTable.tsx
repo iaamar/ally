@@ -51,9 +51,17 @@ export function FindingsTable({ findings }: FindingsTableProps) {
                 <a
                   key={sc}
                   href={`https://www.w3.org/WAI/WCAG22/Understanding/${sc.toLowerCase().replace(/\./g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ marginRight: '0.35rem' }}
+                  data-ally-finding={JSON.stringify({
+                    wcag: f.wcag,
+                    level: f.level,
+                    rule: f.rule_id,
+                    severity: f.severity,
+                    message: f.message,
+                    snippet: f.snippet,
+                    file: f.file,
+                    line: f.line,
+                  })}
+                  style={{ marginRight: '0.35rem', cursor: 'pointer' }}
                 >
                   {sc}
                 </a>

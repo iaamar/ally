@@ -1,10 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { FindingsTable } from '@/components/FindingsTable';
+import { HarnessRunTimeline } from '@/components/HarnessRunTimeline';
 
 interface Props {
   params: Promise<{ projectId: string; scanId: string }>;
-  searchParams: Promise<{ severity?: string; status?: string; rule?: string }>;
+  searchParams: Promise<{
+    severity?: string;
+    status?: string;
+    rule?: string;
+    tab?: string;
+  }>;
 }
 
 function scoreStatus(score: number): 'good' | 'warn' | 'bad' {
@@ -57,6 +63,7 @@ export default async function ScanFindings({ params, searchParams }: Props) {
   const severities = [...new Set(allFindings?.map((f) => f.severity) ?? [])].sort();
   const statuses = [...new Set(allFindings?.map((f) => f.status) ?? [])].sort();
   const rules = [...new Set(allFindings?.map((f) => f.rule_id) ?? [])].sort();
+  const activeTab = filters.tab === 'run' ? 'run' : 'findings';
 
   return (
     <section>
@@ -78,53 +85,81 @@ export default async function ScanFindings({ params, searchParams }: Props) {
         </div>
       </div>
 
-      <form method="get" className="toolbar">
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label htmlFor="filter-severity">Severity</label>
-          <select id="filter-severity" name="severity" defaultValue={filters.severity ?? ''}>
-            <option value="">All</option>
-            {severities.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label htmlFor="filter-status">Status</label>
-          <select id="filter-status" name="status" defaultValue={filters.status ?? ''}>
-            <option value="">All</option>
-            {statuses.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label htmlFor="filter-rule">Rule</label>
-          <select id="filter-rule" name="rule" defaultValue={filters.rule ?? ''}>
-            <option value="">All</option>
-            {rules.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button type="submit" className="btn-primary">
-            Apply filters
-          </button>
-        </div>
-      </form>
-
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <FindingsTable findings={findings ?? []} />
+      <div className="page-tabs" role="tablist" aria-label="Scan detail views">
+        <a
+          href={`/p/${projectId}/scans/${scanId}`}
+          role="tab"
+          aria-selected={activeTab === 'findings'}
+          className="page-tab"
+        >
+          Findings
+          <span className="page-tab__count">{allFindings?.length ?? 0}</span>
+        </a>
+        <a
+          href={`/p/${projectId}/scans/${scanId}?tab=run`}
+          role="tab"
+          aria-selected={activeTab === 'run'}
+          className="page-tab"
+        >
+          Run status
+        </a>
       </div>
+
+      {activeTab === 'run' ? (
+        <div role="tabpanel" aria-label="Run status">
+          <HarnessRunTimeline projectId={projectId} scanId={scanId} />
+        </div>
+      ) : (
+        <div role="tabpanel" aria-label="Findings">
+          <form method="get" className="toolbar">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="filter-severity">Severity</label>
+              <select id="filter-severity" name="severity" defaultValue={filters.severity ?? ''}>
+                <option value="">All</option>
+                {severities.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="filter-status">Status</label>
+              <select id="filter-status" name="status" defaultValue={filters.status ?? ''}>
+                <option value="">All</option>
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="filter-rule">Rule</label>
+              <select id="filter-rule" name="rule" defaultValue={filters.rule ?? ''}>
+                <option value="">All</option>
+                {rules.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button type="submit" className="btn-primary">
+                Apply filters
+              </button>
+            </div>
+          </form>
+
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <FindingsTable findings={findings ?? []} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
