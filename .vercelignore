@@ -16,7 +16,6 @@ services/
 *.pyc
 
 # Local development metadata and credentials.
-.git/
 .vercel/
 .claude/
 .superpowers/
