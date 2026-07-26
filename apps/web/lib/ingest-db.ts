@@ -10,11 +10,11 @@ export function createIngestDb(
     async findKeyOrg(hash: string) {
       const { data } = await supabase
         .from('api_keys')
-        .select('id, org_id')
+        .select('id, org_id, name')
         .eq('key_hash', hash)
         .single();
       if (!data) return null;
-      return { orgId: data.org_id, keyId: data.id };
+      return { orgId: data.org_id, keyId: data.id, keyName: data.name };
     },
     async touchKey(keyId: string) {
       await supabase
@@ -63,6 +63,8 @@ export function createIngestDb(
       const rows = findings.map((finding) => ({
         scan_id: scanId,
         fingerprint: finding.fingerprint,
+        match_key: finding.matchKey ?? null,
+        ordinal: finding.ordinal ?? null,
         rule_id: finding.ruleId,
         wcag: finding.wcag,
         level: finding.level,
@@ -71,7 +73,9 @@ export function createIngestDb(
         message: finding.message,
         file: finding.location.file,
         line: finding.location.startLine,
-        snippet: finding.snippet,
+        // Source snippets are useful in the immediate MCP response but are never
+        // retained by the hosted platform.
+        snippet: '',
         fix_class: finding.fixClass,
         cluster_key: finding.clusterKey,
         status: 'open' as const,

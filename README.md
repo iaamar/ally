@@ -70,10 +70,12 @@ codex mcp add ally-remote \
   --bearer-token-env-var ALLY_API_KEY
 ```
 
-The hosted server supports grounded WCAG search and `scan_source_files`, which
-scans source content supplied by the coding agent and persists the report to
-the dashboard. Keep the local stdio server for automatic filesystem discovery,
-Playwright runtime scans, and the stateful remediation harness.
+The hosted server supports the complete supplied-source loop:
+`search_wcag`, `explain_finding`, `scan_accessibility`, `plan_fixes`,
+`record_progress`, `verify_fixes`, `list_scans`, `get_findings`, and
+`get_ally_health`. The older `search_wcag_knowledge` and `scan_source_files`
+names remain as aliases. Keep the local stdio server for automatic filesystem
+discovery, Playwright runtime scans, and approved project test scripts.
 
 ### Cursor
 
@@ -125,7 +127,9 @@ ANTHROPIC_API_KEY=<optional-chat-generation-key>
 ANTHROPIC_MODEL=<provider-model-id>
 BGE_EMBEDDING_URL=http://embeddings:8080
 BGE_EMBEDDING_TOKEN=<private-service-token>
-BGE_REQUEST_TIMEOUT_MS=30000
+BGE_REQUEST_TIMEOUT_MS=5000
+CRON_SECRET=<random-production-secret>
+OTEL_EXPORTER_OTLP_ENDPOINT=<optional-collector-endpoint>
 ```
 
 The assistant uses Groq Qwen when `GROQ_API_KEY` is configured, then falls back
@@ -184,18 +188,26 @@ See [the evaluator implementation](docs/architecture/2026-07-25-evaluator-implem
 
 ### Live harness status
 
-The scan detail page includes a **Run status** tab. MCP tools publish each
-harness transition to the dashboard:
+The organization workspace includes **MCP Activity**, and each scan detail
+keeps a project-filtered **Run status** tab. Hosted and local MCP tools publish
+each transition to durable Supabase runs and immutable events:
 
 `MCP connected → scan → publish scan → plan → implement/repair → evaluate → publish result`
 
-No database migration is required for live status. The MCP authenticates each
-event with the same Ally API key used for scan sync, and the single Docker web
-process broadcasts events to signed-in dashboards over Server-Sent Events.
-The process retains the latest 100 events in memory, so a container restart
-clears the temporary timeline while permanent scans and evaluations remain in
-Supabase. For local development, `.mcp.json` points `ALLY_API_URL` to
-`http://localhost:3000`.
+Apply `apps/web/supabase/migrations/20260726192000_mcp_activity.sql` before
+deploying this application version. The MCP authenticates each event with the
+same Ally API key used for scan sync. Signed-in dashboards load a snapshot
+under RLS, subscribe through Supabase Realtime, and fall back to five-second
+polling if Realtime is interrupted. Completed activity telemetry is retained
+for 30 days; scans, findings, remediation contracts, and evaluations are not
+part of that cleanup.
+
+Native MCP clients receive `notifications/progress` when they provide a
+progress token. Structured Vercel logs are always emitted. OTLP spans are
+enabled only when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, and never include
+credentials, prompts, snippets, or submitted source. Submitted source is
+scanned in memory; only hashes, paths, finding metadata, WCAG excerpts, and
+sanitized verdicts are retained.
 
 After changing MCP tools, rebuild the package and reconnect the MCP server:
 

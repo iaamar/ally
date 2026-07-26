@@ -8,6 +8,10 @@
     "./scan-sources": {
       "types": "./dist/runner.d.ts",
       "import": "./dist/runner.js"
+    },
+    "./hosted-harness": {
+      "types": "./dist/hosted-harness.d.ts",
+      "import": "./dist/hosted-harness.js"
     }
   },
   "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run", "test:runtime": "ALLY_RUNTIME_TESTS=1 vitest run tests/runtime.test.ts", "typecheck": "tsc --noEmit" },

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { FindingsTable } from '@/components/FindingsTable';
 import { HarnessRunTimeline } from '@/components/HarnessRunTimeline';
+import { loadActivitySnapshot } from '@/lib/activity-data';
 
 interface Props {
   params: Promise<{ projectId: string; scanId: string }>;
@@ -64,6 +65,9 @@ export default async function ScanFindings({ params, searchParams }: Props) {
   const statuses = [...new Set(allFindings?.map((f) => f.status) ?? [])].sort();
   const rules = [...new Set(allFindings?.map((f) => f.rule_id) ?? [])].sort();
   const activeTab = filters.tab === 'run' ? 'run' : 'findings';
+  const activitySnapshot = activeTab === 'run'
+    ? await loadActivitySnapshot(supabase, { projectId })
+    : null;
 
   return (
     <section>
@@ -107,7 +111,11 @@ export default async function ScanFindings({ params, searchParams }: Props) {
 
       {activeTab === 'run' ? (
         <div role="tabpanel" aria-label="Run status">
-          <HarnessRunTimeline projectId={projectId} scanId={scanId} />
+          <HarnessRunTimeline
+            projectId={projectId}
+            scanId={scanId}
+            initialSnapshot={activitySnapshot!}
+          />
         </div>
       ) : (
         <div role="tabpanel" aria-label="Findings">

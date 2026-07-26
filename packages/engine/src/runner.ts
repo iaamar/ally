@@ -7,6 +7,7 @@ import { DEFAULT_CONFIG, loadConfig } from './config.js';
 import { discoverFiles } from './discover.js';
 import { parseSource } from './parse.js';
 import { RULES, draftToFinding } from './rules/index.js';
+import { fingerprintOf } from './fingerprint.js';
 import { prioritize, summarize } from './prioritize.js';
 
 function mergeConfig(base: AllyConfig, overrides?: Partial<AllyConfig>): AllyConfig {
@@ -27,16 +28,19 @@ export interface SourceFileInput {
 function runSources(
   sources: SourceFileInput[],
   config: AllyConfig,
+  signal?: AbortSignal,
 ): { findings: Finding[]; packets: ReasoningPacket[] } {
   const findings: Finding[] = [];
   const packets: ReasoningPacket[] = [];
   const ignoredRules = new Set(config.ignoreRules);
 
   for (const sourceFile of sources) {
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     const doc = parseSource(sourceFile.path, sourceFile.content);
     const ctx = { config, doc };
 
     for (const rule of RULES) {
+      if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
       if (ignoredRules.has(rule.meta.id)) continue;
 
       // Per-element checks
@@ -58,6 +62,33 @@ function runSources(
           if (packet) packets.push(packet);
         }
       }
+    }
+  }
+
+  const ordinalCounters = new Map<string, number>();
+  const oldToNew = new Map<string, string>();
+  for (const finding of findings) {
+    const matchKey = finding.matchKey ?? finding.fingerprint;
+    const ordinal = ordinalCounters.get(matchKey) ?? 0;
+    ordinalCounters.set(matchKey, ordinal + 1);
+    const previous = finding.fingerprint;
+    finding.matchKey = matchKey;
+    finding.ordinal = ordinal;
+    finding.fingerprint = fingerprintOf(
+      finding.ruleId,
+      finding.location.file,
+      finding.clusterKey,
+      finding.snippet,
+      ordinal,
+    );
+    if (finding.fix) finding.fix.fingerprint = finding.fingerprint;
+    if (previous !== finding.fingerprint) oldToNew.set(previous, finding.fingerprint);
+  }
+  for (const packet of packets) {
+    const fingerprint = oldToNew.get(packet.findingFingerprint);
+    if (fingerprint) {
+      packet.findingFingerprint = fingerprint;
+      packet.packetId = `pkt_${fingerprint}`;
     }
   }
 
@@ -86,12 +117,13 @@ export async function scanSources(
   projectName: string,
   sources: SourceFileInput[],
   overrides?: Partial<AllyConfig>,
+  signal?: AbortSignal,
 ): Promise<ScanReport> {
   const config = mergeConfig(
     { ...DEFAULT_CONFIG, projectName },
     overrides,
   );
-  return buildSourceReport(projectName, sources, config);
+  return buildSourceReport(projectName, sources, config, signal);
 }
 
 function buildReport(
@@ -110,8 +142,9 @@ function buildSourceReport(
   root: string,
   sources: SourceFileInput[],
   config: AllyConfig,
+  signal?: AbortSignal,
 ): ScanReport {
-  const { findings, packets } = runSources(sources, config);
+  const { findings, packets } = runSources(sources, config, signal);
   const prioritized = prioritize(findings, config.targetLevel);
   const summary = summarize(prioritized, sources.length);
 

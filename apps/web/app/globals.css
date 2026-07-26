@@ -2233,3 +2233,325 @@ body {
     gap: 0.1rem;
   }
 }
+
+/* MCP activity */
+.activity {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.activity-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.activity-health {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.2rem;
+  font-size: 1rem;
+}
+
+.activity-health__dot,
+.activity-connection > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--good);
+}
+
+.activity-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.activity-tab {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.activity-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+.activity-tab:focus-visible,
+.activity-run > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.activity-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.activity-connection--connecting > span,
+.activity-connection--polling > span {
+  background: var(--warn);
+}
+
+.activity-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(8rem, 1fr));
+  gap: 0.65rem;
+}
+
+.activity-filters label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.activity-filters select,
+.activity-filters input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  background: var(--surface);
+  font: inherit;
+}
+
+.activity-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.activity-run {
+  padding: 0;
+  overflow: clip;
+}
+
+.activity-run > summary {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.5fr) auto minmax(8rem, 0.8fr) minmax(10rem, auto);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.activity-run > summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-run > summary::before {
+  content: '›';
+  position: absolute;
+  margin-left: -0.55rem;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.activity-run[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.activity-run__identity,
+.activity-run__meta {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.activity-run__identity strong,
+.activity-run__identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-run__identity strong {
+  font-size: 0.84rem;
+}
+
+.activity-run__identity span,
+.activity-run__meta {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.activity-run__progress {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) 2.3rem;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-run__progress progress {
+  width: 100%;
+  height: 0.42rem;
+  accent-color: var(--accent);
+}
+
+.activity-run__details {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.activity-run__details dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.activity-run__details dl > div {
+  min-width: 0;
+}
+
+.activity-run__details dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.activity-run__details dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+.activity-timeline h3,
+.activity-attempts h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.8rem;
+}
+
+.activity-timeline ol,
+.activity-attempts ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-timeline li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.activity-timeline p,
+.activity-attempts span {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.activity-timeline time {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.activity-attempts li {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+}
+
+.activity-empty {
+  padding: 2.25rem;
+  text-align: center;
+}
+
+.activity-empty p {
+  margin-top: 0.25rem;
+}
+
+.activity--compact .activity-filters {
+  grid-template-columns: repeat(4, minmax(7rem, 1fr));
+}
+
+@media (max-width: 1050px) {
+  .activity-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .activity-filters {
+    grid-template-columns: repeat(3, minmax(8rem, 1fr));
+  }
+
+  .activity-run > summary {
+    grid-template-columns: minmax(12rem, 1fr) auto minmax(8rem, 0.75fr);
+  }
+
+  .activity-run__meta {
+    grid-column: 1 / -1;
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .activity-kpis,
+  .activity-filters,
+  .activity--compact .activity-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-toolbar {
+    align-items: flex-end;
+  }
+
+  .activity-run > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .activity-run__progress,
+  .activity-run__meta {
+    grid-column: 1 / -1;
+  }
+
+  .activity-run__details dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-run > summary::before {
+    transition: none;
+  }
+}

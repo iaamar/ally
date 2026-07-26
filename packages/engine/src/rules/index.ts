@@ -3,7 +3,7 @@ import type {
   Severity, Confidence, FixClass, Modality, WcagLevel,
 } from '@ally/shared';
 import type { Elem, ParsedDoc, AllyConfig } from '../types.js';
-import { fingerprintOf, clusterKeyOf } from '../fingerprint.js';
+import { fingerprintOf, matchKeyOf, clusterKeyOf } from '../fingerprint.js';
 import { imageRules } from './images.js';
 import { interactiveRules } from './interactive.js';
 import { ariaRules } from './aria.js';
@@ -75,10 +75,13 @@ export function draftToFinding(
 
   const clusterKey = clusterKeyOf(elem, relFile);
   const snippet = elem.raw;
-  const fingerprint = fingerprintOf(meta.id, relFile, clusterKey, snippet);
+  const matchKey = matchKeyOf(meta.id, relFile, clusterKey);
+  const fingerprint = fingerprintOf(meta.id, relFile, clusterKey, snippet, 0);
 
   const finding: Finding = {
     fingerprint,
+    matchKey,
+    ordinal: 0,
     ruleId: meta.id,
     wcag: meta.wcag,
     level: meta.level,

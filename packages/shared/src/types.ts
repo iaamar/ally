@@ -9,7 +9,12 @@ export interface TextEdit { file: string; startLine: number; startCol: number; e
 export interface AutoFix { title: string; fingerprint: string; edits: TextEdit[]; }
 
 export interface Finding {
-  fingerprint: string; ruleId: string; wcag: string[]; level: WcagLevel;
+  fingerprint: string;
+  /** Stable across snippet edits; optional only for pre-migration persisted findings. */
+  matchKey?: string;
+  /** Position within an identical match-key group. */
+  ordinal?: number;
+  ruleId: string; wcag: string[]; level: WcagLevel;
   severity: Severity; confidence: Confidence; impact: Modality[];
   message: string; location: SourceLocation; snippet: string;
   clusterKey: string; fixClass: FixClass; fix?: AutoFix; pass: 1 | 2 | 3;

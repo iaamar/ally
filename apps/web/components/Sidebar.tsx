@@ -14,6 +14,11 @@ const NAVIGATION = [
     icon: <><path d="M6.2 5.25l-1-1a2.3 2.3 0 0 0-3.25 3.25l1.55 1.55a2.3 2.3 0 0 0 3.25 0l1-1" /><path d="M9.8 10.75l1 1a2.3 2.3 0 0 0 3.25-3.25L12.5 6.95a2.3 2.3 0 0 0-3.25 0l-1 1" /><path d="M5.75 10.25l4.5-4.5" /></>,
   },
   {
+    href: '/activity',
+    label: 'MCP Activity',
+    icon: <><path d="M2 11.5h2.2l1.5-4 2.2 6 1.7-8 1.4 4h3" /><path d="M2 2.75h12v10.5H2z" /></>,
+  },
+  {
     href: '/keys',
     label: 'API Keys',
     icon: <><circle cx="5.4" cy="5.4" r="2.9" /><path d="M7.6 7.6l5.1 5.1M10.6 10.6l1.3-1.3M12.7 12.7l1.3-1.3" /></>,

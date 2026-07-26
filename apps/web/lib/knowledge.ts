@@ -12,7 +12,7 @@ export interface KnowledgeHit {
 
 export interface KnowledgeResult {
   mode: 'hybrid' | 'semantic' | 'lexical_fallback';
-  embeddingProvider?: 'dedicated_bge' | 'legacy_edge';
+  embeddingProvider?: 'dedicated_bge';
   warning?: string;
   results: KnowledgeHit[];
 }
@@ -21,6 +21,7 @@ interface SearchOptions {
   version?: string;
   levels?: string[];
   matchCount?: number;
+  signal?: AbortSignal;
 }
 
 type Fetch = typeof fetch;
@@ -86,7 +87,7 @@ function embeddingConfig(): { url: string; token?: string } | null {
 
 function embeddingTimeout(): number {
   const parsed = Number.parseInt(process.env.BGE_REQUEST_TIMEOUT_MS ?? '5000', 10);
-  return Number.isFinite(parsed) ? Math.max(1000, Math.min(parsed, 30_000)) : 5000;
+  return Number.isFinite(parsed) ? Math.max(1000, Math.min(parsed, 5_000)) : 5000;
 }
 
 function mapRows(rows: Array<{
@@ -120,6 +121,7 @@ async function lexicalFallback(
   warning: string,
   fetchImpl: Fetch,
 ): Promise<KnowledgeResult> {
+  if (options.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
   const rpcResponse = await fetchImpl(`${url}/rest/v1/rpc/lexical_search_wcag`, {
     method: 'POST',
     headers: {
@@ -133,6 +135,7 @@ async function lexicalFallback(
       filter_version: options.version ?? null,
       filter_levels: options.levels ?? null,
     }),
+    signal: options.signal,
   });
 
   if (rpcResponse.ok) {
@@ -160,6 +163,7 @@ async function lexicalFallback(
   }
   const fallback = await fetchImpl(fallbackUrl, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
+    signal: options.signal,
   });
   if (!fallback.ok) {
     throw new Error(`Knowledge retrieval and lexical fallback failed (HTTP ${fallback.status}).`);
@@ -182,6 +186,9 @@ export async function searchWcagKnowledge(
   const dedicated = embeddingConfig();
 
   if (dedicated) {
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(embeddingTimeout())])
+      : AbortSignal.timeout(embeddingTimeout());
     const embeddingResponse = await fetchImpl(`${dedicated.url}/v1/embeddings`, {
       method: 'POST',
       headers: {
@@ -189,7 +196,7 @@ export async function searchWcagKnowledge(
         ...(dedicated.token ? { Authorization: `Bearer ${dedicated.token}` } : {}),
       },
       body: JSON.stringify({ input: normalizedQuery, kind: 'query' }),
-      signal: AbortSignal.timeout(embeddingTimeout()),
+      signal,
     }).catch(() => null);
 
     if (embeddingResponse?.ok) {
@@ -213,6 +220,7 @@ export async function searchWcagKnowledge(
             filter_version: options.version ?? null,
             filter_levels: options.levels ?? null,
           }),
+          signal: options.signal,
         }).catch(() => null);
         if (hybridResponse?.ok) {
           return {
@@ -244,39 +252,13 @@ export async function searchWcagKnowledge(
     );
   }
 
-  const response = await fetchImpl(`${url}/functions/v1/search-wcag`, {
-    method: 'POST',
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: normalizedQuery,
-      match_count: matchCount,
-      version: options.version,
-      level: options.levels,
-      hybrid: true,
-    }),
-  });
-
-  if (response.ok) {
-    const result = (await response.json()) as KnowledgeResult;
-    return {
-      mode: result.mode ?? 'hybrid',
-      embeddingProvider: 'legacy_edge',
-      warning: result.warning,
-      results: result.results ?? [],
-    };
-  }
-
   return lexicalFallback(
     normalizedQuery,
     options,
     matchCount,
     url,
     key,
-    `Legacy semantic search was unavailable (HTTP ${response.status}); using full-text retrieval.`,
+    'The dedicated BGE service is not configured; using full-text retrieval.',
     fetchImpl,
   );
 }

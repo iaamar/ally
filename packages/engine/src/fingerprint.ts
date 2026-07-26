@@ -12,10 +12,22 @@ export function fingerprintOf(
   relFile: string,
   clusterKey: string,
   snippet: string,
+  ordinal: number = 0,
 ): string {
   const normSnippet = snippet.replace(/\s+/g, ' ').trim().slice(0, 200);
-  const input = `${ruleId}|${relFile}|${clusterKey}|${normSnippet}`;
+  const input = `${ruleId}|${relFile}|${clusterKey}|${ordinal}|${normSnippet}`;
   return createHash('sha256').update(input).digest('hex').slice(0, 16);
+}
+
+export function matchKeyOf(
+  ruleId: string,
+  relFile: string,
+  clusterKey: string,
+): string {
+  return createHash('sha256')
+    .update(`${ruleId}|${relFile}|${clusterKey}`)
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /**

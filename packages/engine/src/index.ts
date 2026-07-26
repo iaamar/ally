@@ -9,6 +9,12 @@ export type { Rule, RuleMeta, FindingDraft, RuleCtx } from './rules/index.js';
 export * from './rules/helpers.js';
 export { applyVerdicts } from './reasoning.js';
 export { scanProject, scanFiles, scanSources } from './runner.js';
+export {
+  hashSource,
+  planHostedContract,
+  evaluateHostedContract,
+} from './hosted-harness.js';
+export type { HostedPlanOptions } from './hosted-harness.js';
 export type { SourceFileInput } from './runner.js';
 export { applyEdits, collectFixes } from './fixes.js';
 export { runtimeScan, correlate, runCustomChecks } from './runtime/index.js';

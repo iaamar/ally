@@ -31,8 +31,8 @@ describe('searchWcagKnowledge', () => {
   it('uses lexical search when the embedding endpoint is unavailable', async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'public-key';
+    delete process.env.BGE_EMBEDDING_URL;
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response('provider out of credits', { status: 500 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([{
         content: 'Text requires a contrast ratio of at least 4.5:1.',
         source_url: 'https://www.w3.org/example',
@@ -50,7 +50,10 @@ describe('searchWcagKnowledge', () => {
 
     expect(result.mode).toBe('lexical_fallback');
     expect(result.results[0].citation.criterion).toBe('1.4.3');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/rpc/lexical_search_wcag');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/rpc/lexical_search_wcag');
+    expect(
+      fetchMock.mock.calls.some(([request]) => String(request).includes('/functions/v1/')),
+    ).toBe(false);
   });
 
   it('uses the dedicated BGE service and calls the hybrid Supabase RPC directly', async () => {

@@ -3,7 +3,7 @@ import type { Finding, ScanReport } from '@ally/shared';
 import { hashApiKey } from './keys';
 
 export interface IngestDb {
-  findKeyOrg(hash: string): Promise<{ orgId: string; keyId: string } | null>;
+  findKeyOrg(hash: string): Promise<{ orgId: string; keyId: string; keyName?: string } | null>;
   touchKey(keyId: string): Promise<void>;
   upsertProject(orgId: string, name: string): Promise<{ id: string }>;
   insertScan(projectId: string, report: ScanReport): Promise<{ id: string }>;

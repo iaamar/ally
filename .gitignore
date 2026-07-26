@@ -7,6 +7,7 @@ coverage/
 *.tsbuildinfo
 .superpowers/
 .vercel
+**/supabase/.temp/
 .env*
 **/.model-cache/
 **/__pycache__/

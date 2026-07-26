@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_heartbeats: {
+        Row: {
+          agent_id: string
+          id: string
+          last_seen_at: string
+          metadata: Json
+          org_id: string
+          project_name: string
+        }
+        Insert: {
+          agent_id: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          org_id: string
+          project_name?: string
+        }
+        Update: {
+          agent_id?: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          org_id?: string
+          project_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_heartbeats_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -62,7 +97,10 @@ export type Database = {
           id: string
           level: string
           line: number
+          match_key: string | null
           message: string
+          ordinal: number | null
+          position: number
           rule_id: string
           scan_id: string
           severity: string
@@ -79,7 +117,10 @@ export type Database = {
           id?: string
           level: string
           line?: number
+          match_key?: string | null
           message?: string
+          ordinal?: number | null
+          position?: number
           rule_id: string
           scan_id: string
           severity: string
@@ -96,7 +137,10 @@ export type Database = {
           id?: string
           level?: string
           line?: number
+          match_key?: string | null
           message?: string
+          ordinal?: number | null
+          position?: number
           rule_id?: string
           scan_id?: string
           severity?: string
@@ -110,6 +154,154 @@ export type Database = {
             columns: ["scan_id"]
             isOneToOne: false
             referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_run_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          event_key: string
+          id: number
+          message: string
+          progress: number
+          run_id: string
+          stage: string
+          status: string
+          total: number
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          event_key: string
+          id?: never
+          message?: string
+          progress?: number
+          run_id: string
+          stage: string
+          status: string
+          total?: number
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          event_key?: string
+          id?: never
+          message?: string
+          progress?: number
+          run_id?: string
+          stage?: string
+          status?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_runs: {
+        Row: {
+          api_key_id: string | null
+          client_name: string | null
+          completed_at: string | null
+          contract_id: string | null
+          current_stage: string
+          duration_ms: number | null
+          error_category: string | null
+          error_message: string | null
+          id: string
+          kind: string
+          message: string
+          org_id: string
+          parent_run_id: string | null
+          progress: number
+          project_id: string | null
+          request_id: string | null
+          started_at: string
+          status: string
+          tool_name: string | null
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          api_key_id?: string | null
+          client_name?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          current_stage?: string
+          duration_ms?: number | null
+          error_category?: string | null
+          error_message?: string | null
+          id?: string
+          kind: string
+          message?: string
+          org_id: string
+          parent_run_id?: string | null
+          progress?: number
+          project_id?: string | null
+          request_id?: string | null
+          started_at?: string
+          status?: string
+          tool_name?: string | null
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key_id?: string | null
+          client_name?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          current_stage?: string
+          duration_ms?: number | null
+          error_category?: string | null
+          error_message?: string | null
+          id?: string
+          kind?: string
+          message?: string
+          org_id?: string
+          parent_run_id?: string | null
+          progress?: number
+          project_id?: string | null
+          request_id?: string | null
+          started_at?: string
+          status?: string
+          tool_name?: string | null
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_runs_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_runs_parent_run_id_fkey"
+            columns: ["parent_run_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -164,6 +356,271 @@ export type Database = {
           },
         ]
       }
+      remediation_attempts: {
+        Row: {
+          changed_files: Json
+          contract_row_id: string
+          created_at: string
+          feedback: string
+          id: string
+          n: number
+          progress_signature: string
+          result: Json
+          verdict: string
+        }
+        Insert: {
+          changed_files?: Json
+          contract_row_id: string
+          created_at?: string
+          feedback?: string
+          id?: string
+          n: number
+          progress_signature?: string
+          result?: Json
+          verdict: string
+        }
+        Update: {
+          changed_files?: Json
+          contract_row_id?: string
+          created_at?: string
+          feedback?: string
+          id?: string
+          n?: number
+          progress_signature?: string
+          result?: Json
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_attempts_contract_row_id_fkey"
+            columns: ["contract_row_id"]
+            isOneToOne: false
+            referencedRelation: "remediation_contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remediation_contracts: {
+        Row: {
+          acceptance: Json
+          baseline: Json
+          contract_id: string
+          created_at: string
+          guidance: string
+          id: string
+          knowledge: Json
+          org_id: string
+          project_name: string
+          run_id: string | null
+          scope: Json
+          targets: Json
+          workflow_run_id: string | null
+        }
+        Insert: {
+          acceptance: Json
+          baseline: Json
+          contract_id: string
+          created_at?: string
+          guidance?: string
+          id?: string
+          knowledge?: Json
+          org_id: string
+          project_name?: string
+          run_id?: string | null
+          scope: Json
+          targets: Json
+          workflow_run_id?: string | null
+        }
+        Update: {
+          acceptance?: Json
+          baseline?: Json
+          contract_id?: string
+          created_at?: string
+          guidance?: string
+          id?: string
+          knowledge?: Json
+          org_id?: string
+          project_name?: string
+          run_id?: string | null
+          scope?: Json
+          targets?: Json
+          workflow_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_contracts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remediation_contracts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "remediation_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remediation_contracts_workflow_run_id_fkey"
+            columns: ["workflow_run_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remediation_runs: {
+        Row: {
+          contract_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          org_id: string
+          project_name: string
+          score_after: number | null
+          score_before: number | null
+          status: string
+          targets_resolved: number
+          targets_total: number
+          updated_at: string
+        }
+        Insert: {
+          contract_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          org_id: string
+          project_name?: string
+          score_after?: number | null
+          score_before?: number | null
+          status?: string
+          targets_resolved?: number
+          targets_total?: number
+          updated_at?: string
+        }
+        Update: {
+          contract_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          project_name?: string
+          score_after?: number | null
+          score_before?: number | null
+          status?: string
+          targets_resolved?: number
+          targets_total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: string
+          label: string
+          phase: string
+          run_id: string
+          seq: number
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          label?: string
+          phase: string
+          run_id: string
+          seq?: number
+          status: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          label?: string
+          phase?: string
+          run_id?: string
+          seq?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "remediation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_requests: {
+        Row: {
+          claimed_by: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          org_id: string
+          params: Json
+          project_name: string
+          requested_by: string | null
+          run_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          org_id: string
+          params?: Json
+          project_name?: string
+          requested_by?: string | null
+          run_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          org_id?: string
+          params?: Json
+          project_name?: string
+          requested_by?: string | null
+          run_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scan_requests_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "remediation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scans: {
         Row: {
           created_at: string
@@ -202,12 +659,176 @@ export type Database = {
           },
         ]
       }
+      wcag_chunks: {
+        Row: {
+          chunk_index: number
+          conformance_level: string | null
+          content: string
+          created_at: string
+          criterion_id: string | null
+          document_id: string
+          embedding: unknown
+          embedding_model: string
+          fts: unknown
+          id: string
+          metadata: Json
+          principle: string | null
+          source_url: string | null
+          token_count: number
+          topic: string | null
+          wcag_version: string | null
+        }
+        Insert: {
+          chunk_index: number
+          conformance_level?: string | null
+          content: string
+          created_at?: string
+          criterion_id?: string | null
+          document_id: string
+          embedding?: unknown
+          embedding_model?: string
+          fts?: unknown
+          id?: string
+          metadata?: Json
+          principle?: string | null
+          source_url?: string | null
+          token_count: number
+          topic?: string | null
+          wcag_version?: string | null
+        }
+        Update: {
+          chunk_index?: number
+          conformance_level?: string | null
+          content?: string
+          created_at?: string
+          criterion_id?: string | null
+          document_id?: string
+          embedding?: unknown
+          embedding_model?: string
+          fts?: unknown
+          id?: string
+          metadata?: Json
+          principle?: string | null
+          source_url?: string | null
+          token_count?: number
+          topic?: string | null
+          wcag_version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wcag_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "wcag_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wcag_documents: {
+        Row: {
+          content_hash: string
+          doc_type: string
+          id: string
+          raw_markdown: string
+          scraped_at: string
+          source_url: string
+          title: string
+          updated_at: string
+          wcag_version: string | null
+        }
+        Insert: {
+          content_hash: string
+          doc_type: string
+          id?: string
+          raw_markdown: string
+          scraped_at?: string
+          source_url: string
+          title: string
+          updated_at?: string
+          wcag_version?: string | null
+        }
+        Update: {
+          content_hash?: string
+          doc_type?: string
+          id?: string
+          raw_markdown?: string
+          scraped_at?: string
+          source_url?: string
+          title?: string
+          updated_at?: string
+          wcag_version?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      hybrid_search_wcag: {
+        Args: {
+          filter_criteria?: string[]
+          filter_doc_types?: string[]
+          filter_levels?: string[]
+          filter_version?: string
+          match_count?: number
+          query_embedding: unknown
+          query_text: string
+          rrf_k?: number
+        }
+        Returns: {
+          conformance_level: string
+          content: string
+          criterion_id: string
+          id: string
+          metadata: Json
+          score: number
+          source_url: string
+          wcag_version: string
+        }[]
+      }
+      lexical_search_wcag: {
+        Args: {
+          filter_criteria?: string[]
+          filter_doc_types?: string[]
+          filter_levels?: string[]
+          filter_version?: string
+          match_count?: number
+          query_text: string
+        }
+        Returns: {
+          conformance_level: string
+          content: string
+          criterion_id: string
+          id: string
+          metadata: Json
+          score: number
+          source_url: string
+          wcag_version: string
+        }[]
+      }
+      match_wcag_chunks: {
+        Args: {
+          filter_doc_types?: string[]
+          filter_levels?: string[]
+          filter_version?: string
+          match_count?: number
+          query_embedding: unknown
+          similarity_cutoff?: number
+        }
+        Returns: {
+          conformance_level: string
+          content: string
+          criterion_id: string
+          id: string
+          metadata: Json
+          similarity: number
+          source_url: string
+          wcag_version: string
+        }[]
+      }
+      wcag_extract_criteria: { Args: { query_text: string }; Returns: string[] }
+      wcag_or_tsquery: { Args: { query_text: string }; Returns: unknown }
     }
     Enums: {
       [_ in never]: never

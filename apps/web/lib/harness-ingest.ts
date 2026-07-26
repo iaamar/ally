@@ -1,8 +1,4 @@
 import { z } from 'zod';
-import {
-  publishHarnessEvent,
-  type HarnessEventInput,
-} from './harness-event-bus';
 import { hashApiKey } from './keys';
 
 export const zHarnessEventIngest = z.object({
@@ -18,10 +14,41 @@ export const zHarnessEventIngest = z.object({
 });
 
 export interface HarnessIngestDb {
-  findKeyOrg(hash: string): Promise<{ orgId: string; keyId: string } | null>;
+  findKeyOrg(hash: string): Promise<{ orgId: string; keyId: string; keyName?: string } | null>;
   touchKey(keyId: string): Promise<void>;
   upsertProject(orgId: string, name: string): Promise<{ id: string }>;
+  upsertRun(input: {
+    orgId: string;
+    keyId: string;
+    keyName?: string;
+    projectId: string;
+    externalRunId: string;
+    status: 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed';
+    progress: number;
+    stage: string;
+    message: string;
+  }): Promise<{ id: string }>;
+  appendEvent(input: {
+    runId: string;
+    eventKey: string;
+    stage: string;
+    status: 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'info';
+    progress: number;
+    message: string;
+    detail: Record<string, unknown>;
+  }): Promise<void>;
 }
+
+const stageProgress: Record<string, number> = {
+  connect: 5,
+  scan: 20,
+  publish_scan: 35,
+  plan: 45,
+  implement: 60,
+  evaluate: 75,
+  repair: 85,
+  publish_evaluation: 95,
+};
 
 export async function processHarnessEventIngest(
   db: HarnessIngestDb,
@@ -44,10 +71,45 @@ export async function processHarnessEventIngest(
 
   await db.touchKey(keyOrg.keyId);
   const project = await db.upsertProject(keyOrg.orgId, parsed.data.projectName);
-  publishHarnessEvent(project.id, parsed.data as HarnessEventInput);
+  const runStatus = parsed.data.runStatus === 'passed'
+    ? 'succeeded'
+    : parsed.data.runStatus;
+  const eventStatus = parsed.data.eventStatus === 'completed'
+    ? 'succeeded'
+    : parsed.data.eventStatus === 'skipped'
+      ? 'info'
+      : parsed.data.eventStatus;
+  const progress = runStatus === 'succeeded' || runStatus === 'failed'
+    ? 100
+    : stageProgress[parsed.data.stage] ?? 0;
+  const run = await db.upsertRun({
+    orgId: keyOrg.orgId,
+    keyId: keyOrg.keyId,
+    keyName: keyOrg.keyName,
+    projectId: project.id,
+    externalRunId: parsed.data.runId,
+    status: runStatus,
+    progress,
+    stage: parsed.data.stage,
+    message: parsed.data.message,
+  });
+  await db.appendEvent({
+    runId: run.id,
+    eventKey: [
+      parsed.data.stage,
+      eventStatus,
+      parsed.data.message,
+      JSON.stringify(parsed.data.detail ?? {}),
+    ].join(':'),
+    stage: parsed.data.stage,
+    status: eventStatus,
+    progress,
+    message: parsed.data.message,
+    detail: parsed.data.detail ?? {},
+  });
 
   return {
     status: 201,
-    json: { runId: parsed.data.runId, projectId: project.id },
+    json: { runId: parsed.data.runId, activityRunId: run.id, projectId: project.id },
   };
 }
