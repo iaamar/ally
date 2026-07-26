@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { ProjectCharts } from '@/components/ProjectCharts';
 import { StatTile } from '@/components/StatTile';
 
 function scoreStatus(score: number): 'good' | 'warn' | 'bad' {
@@ -121,6 +122,14 @@ export default async function Home() {
           meta={lastScanDate ? new Date(lastScanDate).toLocaleTimeString() : undefined}
         />
       </div>
+
+      <ProjectCharts
+        projects={projectRows.map((project) => ({
+          name: project.name,
+          score: project.latestScore,
+          findings: project.totalFindings,
+        }))}
+      />
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
         <table>

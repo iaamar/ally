@@ -31,42 +31,6 @@ export default async function ConnectPage() {
 
   return (
     <section className="connect-page">
-      <div className="connect-hero">
-        <div>
-          <p className="connect-eyebrow">Developer connectors</p>
-          <h1>Ally MCP</h1>
-          <p className="connect-intro">
-            Add the hosted Ally MCP server to the coding agent you already use.
-            Your source stays in the cloned repository; Ally returns WCAG guidance,
-            scans supplied files, and syncs results to this workspace.
-          </p>
-        </div>
-      </div>
-
-      <div className="connect-trust-grid">
-        <article className="connect-trust-card">
-          <span className="connect-trust-card__number">1</span>
-          <div>
-            <h2>Create a private key</h2>
-            <p>One account-scoped key authorizes MCP tools and scan synchronization.</p>
-          </div>
-        </article>
-        <article className="connect-trust-card">
-          <span className="connect-trust-card__number">2</span>
-          <div>
-            <h2>Install from your clone</h2>
-            <p>Run the selected command from the repository your agent should inspect.</p>
-          </div>
-        </article>
-        <article className="connect-trust-card">
-          <span className="connect-trust-card__number">3</span>
-          <div>
-            <h2>Verify Ally</h2>
-            <p>Start a new agent session and confirm Ally appears in its MCP tools.</p>
-          </div>
-        </article>
-      </div>
-
       <ConnectorSetup
         endpoint={`${PRODUCTION_SITE_URL}/api/mcp`}
         accountEmail={user.email ?? ''}

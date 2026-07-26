@@ -30,6 +30,9 @@ export default function RootLayout({
               <span className="brand__name">Ally</span>
             </a>
             <div className="topbar__actions">
+              <a className="header-docs-link" href="/docs">
+                Docs
+              </a>
               <ThemeToggle />
               <AllyChatPanel />
               <form action="/auth/signout" method="post">
@@ -45,6 +48,13 @@ export default function RootLayout({
 
             <main id="main" className="content">
               {children}
+              <footer className="site-footer">
+                © 2026{' '}
+                <a href="https://easyas.company/" target="_blank" rel="noreferrer">
+                  Easy Alliance
+                </a>
+                . All rights reserved.
+              </footer>
             </main>
           </div>
         </div>
