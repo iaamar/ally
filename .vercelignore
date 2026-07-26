@@ -1,0 +1,29 @@
+# Dependencies and build output are restored by Vercel.
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+dist/
+**/dist/
+coverage/
+
+# Local inference services and downloaded model weights are not part of the
+# Next.js deployment.
+services/
+**/.model-cache/
+**/__pycache__/
+*.pyc
+
+# Local development metadata and credentials.
+.git/
+.vercel/
+.claude/
+.superpowers/
+.remember/
+.mcp.json
+.env
+.env.*
+
+# Fixtures and local-only applications.
+demo-a11y-bugs/
