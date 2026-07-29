@@ -18,13 +18,17 @@ export default async function ApiKeysPage() {
     .order('created_at', { ascending: false });
 
   return (
-    <section>
-      <p className="connect-eyebrow">Credential inventory</p>
-      <h1>API Keys</h1>
-      <p className="text-muted api-keys-intro">
-        Keys are created from the Ally MCP page. Review every active coding-agent
-        credential here and revoke access when it is no longer needed.
-      </p>
+    <section className="keys-page">
+      <header className="page-heading page-heading--hero">
+        <div>
+          <p className="page-kicker">Credential inventory</p>
+          <h1>API keys</h1>
+          <p className="text-muted api-keys-intro">
+            Review active agent credentials and revoke access when it is no longer needed.
+          </p>
+        </div>
+        <a className="btn-primary" href="/connect">Create from Ally MCP</a>
+      </header>
 
       {keys && keys.length > 0 ? (
         <div className="card api-keys-table">

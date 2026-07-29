@@ -45,9 +45,14 @@ export default async function SettingsPage() {
   }
 
   return (
-    <section>
-      <h1>Settings</h1>
-      <p className="text-muted">Your account and workspace.</p>
+    <section className="settings-page">
+      <header className="page-heading page-heading--hero">
+        <div>
+          <p className="page-kicker">Workspace administration</p>
+          <h1>Settings</h1>
+          <p className="text-muted">Manage your account, workspace, and data.</p>
+        </div>
+      </header>
 
       <div className="card settings-card">
         <h2 className="settings-card__title">Account</h2>

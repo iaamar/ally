@@ -13,9 +13,10 @@ export default async function ActivityPage() {
 
   const snapshot = await loadActivitySnapshot(supabase);
   return (
-    <section>
-      <div className="page-heading">
+    <section className="activity-page">
+      <div className="page-heading page-heading--hero">
         <div>
+          <p className="page-kicker">MCP observability</p>
           <h1>Traces</h1>
           <p className="text-muted">
             Live tool calls and remediation workflows across your organization.
