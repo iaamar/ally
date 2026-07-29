@@ -63,12 +63,12 @@ function authContext(extra: HostedToolExtra) {
   const keyId = extra.authInfo?.extra?.keyId;
   const keyName = extra.authInfo?.extra?.keyName;
   const clientName = extra.authInfo?.extra?.clientName;
-  if (typeof orgId !== 'string' || typeof keyId !== 'string') {
+  if (typeof orgId !== 'string') {
     throw new Error('Authenticated Ally organization context is missing.');
   }
   return {
     orgId,
-    keyId,
+    keyId: typeof keyId === 'string' ? keyId : undefined,
     keyName: typeof keyName === 'string' ? keyName : undefined,
     clientName: typeof clientName === 'string' ? clientName : undefined,
   };
@@ -77,14 +77,19 @@ function authContext(extra: HostedToolExtra) {
 export interface ToolActivity {
   runId: string | null;
   orgId: string;
-  keyId: string;
+  keyId?: string;
   signal: AbortSignal;
+  describe(fields: {
+    title: string;
+    input?: Record<string, unknown>;
+  }): Promise<void>;
   progress(
     value: number,
     message: string,
     stage: string,
     detail?: Record<string, unknown>,
   ): Promise<void>;
+  complete(message: string, output?: Record<string, unknown>): Promise<void>;
   link(fields: {
     projectId?: string;
     parentRunId?: string;
@@ -136,10 +141,11 @@ export async function runWithMcpActivity(
       })
     : null;
   let runId: string | null = null;
+  let runTitle = toolName.replaceAll('_', ' ');
   try {
     const { data, error } = await platformClient().from('mcp_runs').insert({
       org_id: orgId,
-      api_key_id: keyId,
+      api_key_id: keyId ?? null,
       kind: 'tool',
       tool_name: toolName,
       request_id: String(extra.requestId),
@@ -163,16 +169,35 @@ export async function runWithMcpActivity(
   }
 
   let lastProgress = 0;
+  let lastMessage = `Using tool: ${toolName}`;
+  let completionMessage: string | null = null;
+  let completionOutput: Record<string, unknown> | undefined;
   const workflowProgress = new Map<string, number>();
   const activity: ToolActivity = {
     runId,
     orgId,
     keyId,
     signal: extra.signal,
+    async describe(fields) {
+      runTitle = fields.title.slice(0, 160);
+      if (!runId) return;
+      await appendEvent(
+        runId,
+        'input',
+        'info',
+        `Received inputs for ${runTitle}.`,
+        lastProgress,
+        {
+          input: fields.input ?? {},
+          action: `Prepare ${runTitle.toLowerCase()} for execution.`,
+        },
+      );
+    },
     async progress(value, message, stage, detail) {
       if (extra.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
       const next = Math.max(lastProgress, Math.min(100, value));
       lastProgress = next;
+      lastMessage = message;
       const progressToken = extra._meta?.progressToken;
       if (validProgressToken(progressToken)) {
         try {
@@ -193,6 +218,16 @@ export async function runWithMcpActivity(
       }).eq('id', runId);
       await appendEvent(runId, stage, 'running', message, next, detail);
     },
+    async complete(message, output) {
+      completionMessage = message.slice(0, 500);
+      completionOutput = output;
+      lastMessage = completionMessage;
+      if (!runId) return;
+      await platformClient().from('mcp_runs').update({
+        message: completionMessage,
+        updated_at: new Date().toISOString(),
+      }).eq('id', runId);
+    },
     async link(fields) {
       if (!runId) return;
       await platformClient().from('mcp_runs').update({
@@ -205,7 +240,7 @@ export async function runWithMcpActivity(
     async createWorkflow(projectId, message) {
       const { data, error } = await platformClient().from('mcp_runs').insert({
         org_id: orgId,
-        api_key_id: keyId,
+        api_key_id: keyId ?? null,
         project_id: projectId ?? null,
         kind: 'remediation',
         client_name: clientName ?? null,
@@ -263,11 +298,12 @@ export async function runWithMcpActivity(
         ? result.content.find((item) => item.type === 'text')?.text.slice(0, 500)
           ?? 'Tool returned an error.'
         : null;
+      const finalMessage = completionMessage ?? toolError ?? lastMessage;
       await platformClient().from('mcp_runs').update({
         status: result.isError ? 'failed' : 'succeeded',
         progress: 100,
         current_stage: result.isError ? 'failed' : 'complete',
-        message: toolError ?? 'Tool completed.',
+        message: finalMessage,
         error_category: result.isError ? 'tool_result' : null,
         error_message: toolError,
         updated_at: now,
@@ -278,8 +314,16 @@ export async function runWithMcpActivity(
         runId,
         result.isError ? 'failed' : 'complete',
         result.isError ? 'failed' : 'succeeded',
-        toolError ?? 'Tool completed.',
+        finalMessage,
         100,
+        {
+          output: completionOutput
+            ?? (result.isError ? { error: toolError } : { summary: finalMessage }),
+          action: result.isError
+            ? `${runTitle} completed with follow-up required.`
+            : `${runTitle} completed.`,
+          ...(result.isError && toolError ? { error: toolError } : {}),
+        },
       );
     }
     console.log(JSON.stringify({

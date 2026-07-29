@@ -14,6 +14,93 @@ type ConnectionState = 'connecting' | 'live' | 'polling';
 
 const ACTIVE = new Set<ActivityRunStatus>(['queued', 'running', 'waiting']);
 const FAILED = new Set<ActivityRunStatus>(['failed', 'cancelled', 'escalated']);
+const TOOL_TITLES: Record<string, string> = {
+  scan_accessibility: 'Accessibility scan',
+  scan_source_files: 'Accessibility scan',
+  plan_fixes: 'Fix plan',
+  record_progress: 'Fix implementation',
+  verify_fixes: 'Fix verification',
+  search_wcag: 'WCAG search',
+  search_wcag_knowledge: 'WCAG search',
+  explain_finding: 'Finding explanation',
+  list_scans: 'Scan history',
+  get_findings: 'Finding review',
+  get_ally_health: 'MCP health check',
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function humanize(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function eventSection(run: ActivityRun, section: 'input' | 'output'): unknown {
+  const events = section === 'input' ? run.events : [...run.events].reverse();
+  for (const event of events) {
+    if (!isRecord(event.detail) || !(section in event.detail)) continue;
+    return event.detail[section];
+  }
+  return undefined;
+}
+
+function projectLabel(run: ActivityRun): string | null {
+  if (run.project_name) return run.project_name;
+  const input = eventSection(run, 'input');
+  return isRecord(input) && typeof input.projectName === 'string'
+    ? input.projectName
+    : null;
+}
+
+function runTitle(run: ActivityRun): string {
+  const base = run.kind === 'remediation'
+    ? 'Remediation workflow'
+    : TOOL_TITLES[run.tool_name ?? ''] ?? humanize(run.tool_name ?? 'MCP tool');
+  const project = projectLabel(run);
+  return project ? `${base} · ${project}` : base;
+}
+
+function hasDetail(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (isRecord(value)) return Object.keys(value).length > 0;
+  return true;
+}
+
+function StructuredDetail({ value }: { value: unknown }) {
+  if (value === null || value === undefined) return <span className="text-muted">Not recorded</span>;
+  if (typeof value === 'boolean') return <span>{value ? 'Yes' : 'No'}</span>;
+  if (typeof value === 'string' || typeof value === 'number') return <span>{String(value)}</span>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted">None</span>;
+    return (
+      <ul className="activity-detail-list">
+        {value.map((item, index) => (
+          <li key={isRecord(item) && typeof item.path === 'string' ? `${item.path}-${index}` : index}>
+            <StructuredDetail value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (isRecord(value)) {
+    return (
+      <dl className="activity-detail-grid">
+        {Object.entries(value).filter(([, item]) => hasDetail(item)).map(([key, item]) => (
+          <div key={key}>
+            <dt>{humanize(key)}</dt>
+            <dd><StructuredDetail value={item} /></dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return <span>{String(value)}</span>;
+}
 
 function formatDuration(milliseconds: number): string {
   if (milliseconds < 1_000) return `${milliseconds}ms`;
@@ -119,7 +206,7 @@ export function McpActivityDashboard({
   const activeCount = runs.filter((run) => ACTIVE.has(run.status)).length;
   const latest = runs[0];
   const nextAnnouncement = latest
-    ? `${latest.tool_name ?? 'Remediation workflow'} ${latest.status}: ${latest.message}`
+    ? `${runTitle(latest)} ${latest.status}: ${latest.message}`
     : '';
   if (nextAnnouncement !== announcement.current) announcement.current = nextAnnouncement;
 
@@ -232,7 +319,7 @@ export function McpActivityDashboard({
           <details className="activity-run card" key={run.id}>
             <summary>
               <span className="activity-run__identity">
-                <strong>{run.tool_name ?? 'Remediation workflow'}</strong>
+                <strong>{runTitle(run)}</strong>
                 <span>{run.message || run.current_stage}</span>
               </span>
               <span className={badgeClass(run.status)}>
@@ -245,7 +332,7 @@ export function McpActivityDashboard({
                 <progress
                   value={Math.min(run.progress, run.total)}
                   max={run.total}
-                  aria-label={`${run.tool_name ?? 'Workflow'} progress: ${Math.round(run.progress)} of ${Math.round(run.total)}`}
+                  aria-label={`${runTitle(run)} progress: ${Math.round(run.progress)} of ${Math.round(run.total)}`}
                 />
                 <span>{Math.round((run.progress / run.total) * 100)}%</span>
               </span>
@@ -264,6 +351,16 @@ export function McpActivityDashboard({
                 {run.contract_id ? <div><dt>Contract</dt><dd><code>{run.contract_id}</code></dd></div> : null}
                 {run.error_category ? <div><dt>Error</dt><dd>{run.error_category}: {run.error_message}</dd></div> : null}
               </dl>
+              <div className="activity-run__story">
+                <section>
+                  <h3>Input</h3>
+                  <StructuredDetail value={eventSection(run, 'input')} />
+                </section>
+                <section>
+                  <h3>Outcome</h3>
+                  <StructuredDetail value={eventSection(run, 'output')} />
+                </section>
+              </div>
               {run.attempts.length ? (
                 <div className="activity-attempts">
                   <h3>Verification attempts</h3>
@@ -271,6 +368,15 @@ export function McpActivityDashboard({
                     <li key={attempt.id}>
                       <strong>Attempt {attempt.n}: {attempt.verdict}</strong>
                       <span>{attempt.feedback}</span>
+                      {attempt.changed_files.length ? (
+                        <span>Changed files: {attempt.changed_files.join(', ')}</span>
+                      ) : null}
+                      {hasDetail(attempt.result) ? (
+                        <details className="activity-attempt__details">
+                          <summary>Verification evidence</summary>
+                          <StructuredDetail value={attempt.result} />
+                        </details>
+                      ) : null}
                     </li>
                   ))}</ol>
                 </div>
@@ -279,12 +385,21 @@ export function McpActivityDashboard({
                 <h3>Event timeline</h3>
                 {run.events.length ? <ol>{run.events.map((event) => (
                   <li key={event.id}>
-                    <span className={badgeClass(event.status)}>{event.status}</span>
-                    <div>
-                      <strong>{event.stage}</strong>
-                      <p>{event.message}</p>
-                    </div>
-                    <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleTimeString()}</time>
+                    <details className="activity-event">
+                      <summary>
+                        <span className={badgeClass(event.status)}>{event.status}</span>
+                        <span className="activity-event__summary">
+                          <strong>{humanize(event.stage)}</strong>
+                          <span>{event.message}</span>
+                        </span>
+                        <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleTimeString()}</time>
+                      </summary>
+                      <div className="activity-event__details">
+                        {hasDetail(event.detail)
+                          ? <StructuredDetail value={event.detail} />
+                          : <p className="text-muted">No additional metadata was recorded for this event.</p>}
+                      </div>
+                    </details>
                   </li>
                 ))}</ol> : <p className="text-muted">No detailed events were recorded.</p>}
               </div>

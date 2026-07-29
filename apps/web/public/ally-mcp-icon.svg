@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Ally</title>
+  <defs>
+    <linearGradient id="ally-gradient" x1="32" y1="16" x2="224" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#72B4FF"/>
+      <stop offset="1" stop-color="#2C66DB"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#ally-gradient)"/>
+  <path
+    fill="#06121F"
+    d="M145.7 46 208 210h-35.4l-13.2-37.1H96.1L82.8 210H48L110.1 46h35.6Zm2.9 96.6L128 84.8l-21 57.8h41.6Z"
+  />
+</svg>

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ScanMetricsCharts } from '@/components/ScanMetricsCharts';
 import { FindingsTable } from '@/components/FindingsTable';
 import { HarnessRunTimeline } from '@/components/HarnessRunTimeline';
 import { loadActivitySnapshot } from '@/lib/activity-data';
@@ -36,6 +38,12 @@ export default async function ScanFindings({ params, searchParams }: Props) {
 
   if (!scan || scan.project_id !== projectId) notFound();
 
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', projectId)
+    .single();
+
   // Build findings query
   let query = supabase
     .from('findings')
@@ -70,10 +78,15 @@ export default async function ScanFindings({ params, searchParams }: Props) {
     : null;
 
   return (
-    <section>
+    <section className="scan-detail">
+      <Breadcrumbs items={[
+        { label: 'Projects', href: '/' },
+        { label: project?.name ?? 'Project', href: `/p/${projectId}` },
+        { label: `Scan ${scan.id}` },
+      ]} />
       <h1>Scan findings</h1>
-      <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
-        <a href={`/p/${projectId}`}>Project</a> / Scan {new Date(scan.created_at).toLocaleString()}
+      <p className="scan-detail__date">
+        Scanned {new Date(scan.created_at).toLocaleString()}
       </p>
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
@@ -88,6 +101,8 @@ export default async function ScanFindings({ params, searchParams }: Props) {
           <span className="stat__value">{allFindings?.length ?? 0}</span>
         </div>
       </div>
+
+      <ScanMetricsCharts findings={allFindings ?? []} />
 
       <div className="page-tabs" role="tablist" aria-label="Scan detail views">
         <a

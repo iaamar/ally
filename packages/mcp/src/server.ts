@@ -15,7 +15,11 @@ import {
   type HarnessEventStatus,
   type HarnessRunStatus,
 } from './sync.js';
-import { createSprintContract, evaluateSprintContract } from './harness.js';
+import {
+  createSprintContract,
+  evaluateSprintContract,
+  type SprintContract,
+} from './harness.js';
 import { searchKnowledge } from './knowledge.js';
 import { checkAllyHealth } from './health.js';
 import {
@@ -29,6 +33,25 @@ function requireReport(state: SessionState) {
     throw new Error('No scan report available. Run scan_project or scan_files first.');
   }
   return state.report;
+}
+
+function plannedLocalChanges(goals: SprintContract['goals']) {
+  const byFile = new Map<string, SprintContract['goals']>();
+  for (const goal of goals) {
+    const fileGoals = byFile.get(goal.file) ?? [];
+    fileGoals.push(goal);
+    byFile.set(goal.file, fileGoals);
+  }
+  return [...byFile.entries()].map(([path, fileGoals]) => ({
+    path,
+    changes: fileGoals.map((goal) => ({
+      rule: goal.ruleId,
+      line: goal.line,
+      severity: goal.severity,
+      fixClass: goal.fixClass,
+      acceptance: goal.acceptance,
+    })),
+  }));
 }
 
 function ensureHarnessRun(
@@ -80,6 +103,7 @@ export function buildServer(state: SessionState): McpServer {
       'For remediation work: check health when needed, scan the project, sync the scan, create a remediation contract, implement only the contracted fixes, evaluate deterministically, repair failures, and sync the final evaluation.',
       'Use search_wcag_knowledge for grounded WCAG guidance.',
       'Never claim remediation passed until evaluate_remediation returns passed.',
+      'Report file-level updates with report_harness_progress while implementing or repairing fixes.',
       'The configured Ally API key authorizes platform search, dashboard sync, evaluation sync, and live run events.',
     ].join(' '),
   });
@@ -177,6 +201,16 @@ export function buildServer(state: SessionState): McpServer {
         eventStatus: 'running',
         runStatus: 'running',
         message: 'Creating the remediation sprint contract.',
+        detail: {
+          input: {
+            projectName: report.projectName,
+            baselineScan: report.scanId,
+            selectedSeverities: severities ?? 'all',
+            selectedFixClasses: fixClasses ?? 'all',
+            limit: limit ?? 10,
+          },
+          action: 'Build a bounded file-level remediation plan and deterministic acceptance gates.',
+        },
       });
       const profile = resolveEvaluationProfile(report.target.root, {
         runtime,
@@ -255,8 +289,17 @@ export function buildServer(state: SessionState): McpServer {
         runStatus: 'waiting',
         message: `Sprint contract created with ${state.contract.goals.length} remediation goal${state.contract.goals.length === 1 ? '' : 's'}.`,
         detail: {
-          contractId: state.contract.id,
-          goals: state.contract.goals.length,
+          action: 'Freeze the remediation scope before implementation begins.',
+          output: {
+            contractId: state.contract.id,
+            goalCount: state.contract.goals.length,
+            files: plannedLocalChanges(state.contract.goals),
+            acceptance: {
+              maxNewFindings: state.contract.maxNewFindings,
+              runtime: state.contract.evaluationProfile.runtime,
+              testScripts: state.contract.evaluationProfile.testScripts,
+            },
+          },
         },
       });
       await emitHarnessEvent(state, {
@@ -305,6 +348,15 @@ export function buildServer(state: SessionState): McpServer {
         eventStatus: 'running',
         runStatus: 'running',
         message: `Running deterministic evaluation attempt ${state.evaluationAttempts + 1}.`,
+        detail: {
+          input: {
+            contractId: state.contract.id,
+            attempt: state.evaluationAttempts + 1,
+            files: [...new Set(state.contract.goals.map((goal) => goal.file))],
+            goalCount: state.contract.goals.length,
+          },
+          action: 'Re-scan the contracted project and execute every required runtime and test gate.',
+        },
       });
       const currentScan = await scanForEvaluation(
         state.contract.root,
@@ -353,10 +405,30 @@ export function buildServer(state: SessionState): McpServer {
           ? 'All deterministic acceptance gates passed.'
           : `Evaluation failed: ${evaluation.reasons.join(' ')}`,
         detail: {
-          attempt: evaluation.attempt,
-          gates: evaluation.gates,
-          unresolvedGoals: evaluation.unresolvedGoals.length,
-          newFindings: evaluation.newFindings.length,
+          action: 'Compare the fresh scan and test evidence against the frozen contract.',
+          output: {
+            attempt: evaluation.attempt,
+            passed: evaluation.passed,
+            gates: evaluation.gates,
+            score: evaluation.score,
+            resolved: evaluation.resolvedGoals.map((goal) => ({
+              file: goal.file,
+              line: goal.line,
+              rule: goal.ruleId,
+            })),
+            unresolved: evaluation.unresolvedGoals.map((goal) => ({
+              file: goal.file,
+              line: goal.line,
+              rule: goal.ruleId,
+            })),
+            newFindings: evaluation.newFindings.map((finding) => ({
+              file: finding.location.file,
+              line: finding.location.startLine,
+              rule: finding.ruleId,
+              severity: finding.severity,
+            })),
+            reasons: evaluation.reasons,
+          },
         },
       });
       return {
@@ -395,7 +467,15 @@ export function buildServer(state: SessionState): McpServer {
         eventStatus: 'running',
         runStatus: 'running',
         message: 'Discovering files and running accessibility rules.',
-        detail: { root, runtime: runtime ?? false },
+        detail: {
+          input: {
+            projectName: state.harnessProjectName,
+            root,
+            runtime: runtime ?? false,
+            routes: routes ?? [],
+          },
+          action: 'Discover supported files, run static rules, and run configured browser checks.',
+        },
       });
       const profile = resolveEvaluationProfile(root, {
         runtime,
@@ -418,10 +498,15 @@ export function buildServer(state: SessionState): McpServer {
             ? `Scan completed: ${result.report.summary.total} findings across ${result.report.target.files} files.`
             : 'Static scan completed, but one or more runtime routes failed.',
           detail: {
-            scanRef: result.report.scanId,
-            files: result.report.target.files,
-            findings: result.report.summary.total,
-            score: result.report.summary.score,
+            action: 'Persist the deterministic scan result in the active MCP session.',
+            output: {
+              scanRef: result.report.scanId,
+              files: result.report.target.files,
+              findings: result.report.summary.total,
+              score: result.report.summary.score,
+              severity: result.report.summary.bySeverity,
+              runtime: result.runtime,
+            },
           },
         });
       } catch (error) {
@@ -474,7 +559,10 @@ export function buildServer(state: SessionState): McpServer {
         eventStatus: 'running',
         runStatus: 'running',
         message: `Scanning ${files.length} selected file${files.length === 1 ? '' : 's'}.`,
-        detail: { root, files: files.length },
+        detail: {
+          input: { projectName: state.harnessProjectName, root, files },
+          action: 'Run deterministic accessibility rules against the selected files.',
+        },
       });
       let report;
       try {
@@ -500,10 +588,14 @@ export function buildServer(state: SessionState): McpServer {
         runStatus: 'waiting',
         message: `Scan completed: ${report.summary.total} findings across ${report.target.files} files.`,
         detail: {
-          scanRef: report.scanId,
-          files: report.target.files,
-          findings: report.summary.total,
-          score: report.summary.score,
+          action: 'Store the selected-file scan as the active baseline.',
+          output: {
+            scanRef: report.scanId,
+            filesScanned: report.target.files,
+            findings: report.summary.total,
+            score: report.summary.score,
+            severity: report.summary.bySeverity,
+          },
         },
       });
       return { content: [{ type: 'text', text: formatSummary(report) }] };
@@ -517,10 +609,15 @@ export function buildServer(state: SessionState): McpServer {
       stage: z.enum(['implement', 'repair']),
       status: z.enum(['running', 'waiting', 'completed', 'failed']),
       message: z.string().min(1).max(500),
+      updates: z.array(z.object({
+        path: z.string().min(1),
+        summary: z.string().min(1).max(500),
+        rules: z.array(z.string().min(1)).optional(),
+      })).optional().describe('File-level changes completed or currently being implemented'),
       detail: z.record(z.unknown()).optional(),
     },
     writePlatform,
-    async ({ stage, status, message, detail }) => {
+    async ({ stage, status, message, updates, detail }) => {
       const report = requireReport(state);
       ensureHarnessRun(state, report.projectName, report.scanId);
       await emitHarnessEvent(state, {
@@ -533,7 +630,19 @@ export function buildServer(state: SessionState): McpServer {
               ? 'waiting'
               : 'running',
         message,
-        detail,
+        detail: {
+          input: {
+            contractId: state.contract?.id ?? null,
+            allowedFiles: state.contract
+              ? [...new Set(state.contract.goals.map((goal) => goal.file))]
+              : [],
+          },
+          action: message,
+          output: {
+            updates: updates ?? [],
+            ...detail,
+          },
+        },
       });
       return {
         content: [{

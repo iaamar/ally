@@ -50,6 +50,21 @@ const stageProgress: Record<string, number> = {
   publish_evaluation: 95,
 };
 
+function structuredEventDetail(
+  status: z.infer<typeof zHarnessEventIngest>['eventStatus'],
+  message: string,
+  detail: Record<string, unknown>,
+): Record<string, unknown> {
+  if ('input' in detail || 'action' in detail || 'output' in detail) return detail;
+  if (status === 'completed') {
+    return { action: message, output: detail };
+  }
+  if (status === 'failed') {
+    return { action: message, output: { error: message, ...detail } };
+  }
+  return { input: detail, action: message };
+}
+
 export async function processHarnessEventIngest(
   db: HarnessIngestDb,
   rawKey: string | null,
@@ -82,6 +97,11 @@ export async function processHarnessEventIngest(
   const progress = runStatus === 'succeeded' || runStatus === 'failed'
     ? 100
     : stageProgress[parsed.data.stage] ?? 0;
+  const detail = structuredEventDetail(
+    parsed.data.eventStatus,
+    parsed.data.message,
+    parsed.data.detail ?? {},
+  );
   const run = await db.upsertRun({
     orgId: keyOrg.orgId,
     keyId: keyOrg.keyId,
@@ -99,13 +119,13 @@ export async function processHarnessEventIngest(
       parsed.data.stage,
       eventStatus,
       parsed.data.message,
-      JSON.stringify(parsed.data.detail ?? {}),
+      JSON.stringify(detail),
     ].join(':'),
     stage: parsed.data.stage,
     status: eventStatus,
     progress,
     message: parsed.data.message,
-    detail: parsed.data.detail ?? {},
+    detail,
   });
 
   return {

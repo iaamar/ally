@@ -4,18 +4,40 @@ import { SkipLink } from '@/components/SkipLink';
 import { AllyChatPanel } from '@/components/AllyChatPanel';
 import { Sidebar } from '@/components/Sidebar';
 import { ThemeToggle, THEME_INIT_SCRIPT } from '@/components/ThemeToggle';
+import { createClient } from '@/lib/supabase/server';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Ally Dashboard',
   description: 'Accessibility scanning dashboard',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      {
+        url: '/ally-mcp-icon.png',
+        type: 'image/png',
+        sizes: '256x256',
+      },
+    ],
+    shortcut: '/favicon.ico',
+    apple: {
+      url: '/ally-mcp-icon.png',
+      type: 'image/png',
+      sizes: '256x256',
+    },
+  },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -35,11 +57,17 @@ export default function RootLayout({
               </a>
               <ThemeToggle />
               <AllyChatPanel />
-              <form action="/auth/signout" method="post">
-                <button type="submit" className="btn-ghost">
-                  Sign out
-                </button>
-              </form>
+              {user ? (
+                <form action="/auth/signout" method="post">
+                  <button type="submit" className="btn-ghost">
+                    Sign out
+                  </button>
+                </form>
+              ) : (
+                <a className="btn-ghost header-auth-link" href="/login">
+                  Sign in
+                </a>
+              )}
             </div>
           </header>
 
@@ -48,13 +76,6 @@ export default function RootLayout({
 
             <main id="main" className="content">
               {children}
-              <footer className="site-footer">
-                © 2026{' '}
-                <a href="https://easyas.company/" target="_blank" rel="noreferrer">
-                  Easy Alliance
-                </a>
-                . All rights reserved.
-              </footer>
             </main>
           </div>
         </div>

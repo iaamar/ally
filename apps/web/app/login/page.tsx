@@ -3,11 +3,18 @@ import { resolveSiteUrl } from '@/lib/site-url';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-export default function LoginPage({
+function safeNextPath(value: string | undefined): string {
+  return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string; error?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string; next?: string }>;
 }) {
+  const params = await searchParams;
+  const nextPath = safeNextPath(params.next);
+
   async function signIn(formData: FormData) {
     'use server';
     const email = formData.get('email') as string;
@@ -23,7 +30,7 @@ export default function LoginPage({
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${siteUrl}/auth/callback`,
+        emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       },
     });
 
@@ -31,7 +38,7 @@ export default function LoginPage({
       redirect('/login?error=' + encodeURIComponent(error.message));
     }
 
-    redirect('/login?sent=1');
+    redirect(`/login?sent=1&next=${encodeURIComponent(nextPath)}`);
   }
 
   return (
@@ -43,7 +50,7 @@ export default function LoginPage({
         <p className="text-muted" style={{ marginBottom: '1.25rem' }}>
           We&rsquo;ll email you a magic link &mdash; no password needed.
         </p>
-        <LoginForm action={signIn} searchParams={searchParams} />
+        <LoginForm action={signIn} params={params} />
       </div>
     </section>
   );
@@ -51,12 +58,11 @@ export default function LoginPage({
 
 async function LoginForm({
   action,
-  searchParams,
+  params,
 }: {
   action: (formData: FormData) => Promise<void>;
-  searchParams: Promise<{ sent?: string; error?: string }>;
+  params: { sent?: string; error?: string };
 }) {
-  const params = await searchParams;
   return (
     <>
       {params.sent && (

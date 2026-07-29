@@ -12,7 +12,7 @@ export default function DocsPage() {
         <p className="connect-eyebrow">Ally MCP reference</p>
         <h1>Accessibility intelligence for coding agents</h1>
         <p>
-          Ally gives Codex, Claude Code, Cursor, and any Streamable HTTP MCP client
+          Ally gives Codex, Claude Code, Claude Desktop, Cursor, and any Streamable HTTP MCP client
           a deterministic accessibility loop: understand, scan, plan, repair, and verify.
         </p>
       </header>
@@ -24,6 +24,7 @@ export default function DocsPage() {
         <a href="#progress">Progress and traces</a>
         <a href="#privacy">Privacy model</a>
         <a href="#connect">Connect a client</a>
+        <a href="#connection-types">Connection types</a>
       </nav>
 
       <div className="docs-content">
@@ -95,13 +96,35 @@ export default function DocsPage() {
 
           <section id="connect" className="docs-section">
             <p className="docs-kicker">Client setup</p>
-            <h2>Connect with one account-scoped key</h2>
+            <h2>Connect a coding client</h2>
             <ol>
-              <li>Create a private key from <a href="/connect">Ally MCP</a>.</li>
-              <li>Select Codex, Claude Code, Cursor, or Generic MCP.</li>
-              <li>Run the generated configuration from the clone the agent should inspect.</li>
+              <li>Open <a href="/connect">Ally MCP</a> and copy the server URL.</li>
+              <li>Add a remote MCP connection named Ally in your coding tool.</li>
+              <li>Continue in the browser when your tool asks you to sign in.</li>
               <li>Start a new agent session and call <code>get_ally_health</code>.</li>
             </ol>
+          </section>
+
+          <section id="connection-types" className="docs-section">
+            <p className="docs-kicker">Transport and identity</p>
+            <h2>Choose the right connection for your environment</h2>
+            <div className="connection-type-grid">
+              <article>
+                <strong>Interactive coding tools</strong>
+                <span>Codex, Claude, Cursor, generic MCP</span>
+                <p>Connect over Streamable HTTP and sign in to Ally through your browser.</p>
+              </article>
+              <article>
+                <strong>CI and service accounts</strong>
+                <span>CI and non-interactive clients</span>
+                <p>Use an account-scoped API key only where a browser sign-in cannot be completed.</p>
+              </article>
+              <article>
+                <strong>Local stdio</strong>
+                <span>Codex, Claude Code, Cursor</span>
+                <p>Local process access for filesystem discovery, Playwright scans, and repository test gates.</p>
+              </article>
+            </div>
           </section>
         </article>
       </div>

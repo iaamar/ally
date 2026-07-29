@@ -31,8 +31,13 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Allow /login, /auth/*, and /api/* without auth
-  if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/auth') && !pathname.startsWith('/api')) {
+  // OAuth discovery and consent must remain reachable before an Ally session exists.
+  const publicPath = pathname.startsWith('/login')
+    || pathname.startsWith('/auth')
+    || pathname.startsWith('/api')
+    || pathname.startsWith('/.well-known')
+    || pathname.startsWith('/oauth');
+  if (!user && !publicPath) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

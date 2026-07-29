@@ -7,12 +7,6 @@ function scoreStatus(score: number): 'good' | 'warn' | 'bad' {
   return score >= 90 ? 'good' : score >= 70 ? 'warn' : 'bad';
 }
 
-function scoreClass(score: number | null): string {
-  if (score === null) return 'stat__value';
-  const s = scoreStatus(score);
-  return `stat__value stat__value--${s}`;
-}
-
 export default async function Home() {
   const supabase = await createClient();
   const {
@@ -131,41 +125,32 @@ export default async function Home() {
         }))}
       />
 
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table>
-          <caption className="visually-hidden">Projects and their latest scan results</caption>
-          <thead>
-            <tr>
-              <th style={{ padding: '0.75rem 1rem' }}>Project</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Latest score</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Findings</th>
-              <th style={{ padding: '0.75rem 1rem' }}>Last scan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {projectRows.map((p) => (
-              <tr key={p.id}>
-                <td style={{ padding: '0.75rem 1rem' }}>
-                  <a href={`/p/${p.id}`}>{p.name}</a>
-                </td>
-                <td style={{ padding: '0.75rem 1rem' }}>
-                  <span
-                    className={scoreClass(p.latestScore)}
-                    style={{ fontSize: '1rem', fontWeight: 650 }}
-                  >
-                    {p.latestScore !== null ? p.latestScore : '—'}
-                  </span>
-                </td>
-                <td style={{ padding: '0.75rem 1rem', fontVariantNumeric: 'tabular-nums' }}>
-                  {p.totalFindings}
-                </td>
-                <td style={{ padding: '0.75rem 1rem' }} className="text-muted">
-                  {p.lastScan ? new Date(p.lastScan).toLocaleDateString() : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="project-card-grid" aria-label="Projects">
+        {projectRows.map((project) => (
+          <a className="project-card" href={`/p/${project.id}`} key={project.id}>
+            <div className="project-card__topline">
+              <span className="project-card__eyebrow">Project</span>
+              <span className="project-card__arrow" aria-hidden="true">›</span>
+            </div>
+            <h2>{project.name}</h2>
+            <div className="project-card__metrics">
+              <div>
+                <span>Score</span>
+                <strong className={project.latestScore === null ? '' : `stat__value--${scoreStatus(project.latestScore)}`}>
+                  {project.latestScore ?? '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Findings</span>
+                <strong>{project.totalFindings}</strong>
+              </div>
+              <div>
+                <span>Last scan</span>
+                <strong>{project.lastScan ? new Date(project.lastScan).toLocaleDateString() : '—'}</strong>
+              </div>
+            </div>
+          </a>
+        ))}
       </div>
     </section>
   );

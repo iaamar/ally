@@ -27,6 +27,8 @@ export interface ActivityAttempt {
   n: number;
   verdict: string;
   feedback: string;
+  changed_files: string[];
+  result: Json;
   created_at: string;
 }
 
@@ -82,7 +84,14 @@ export async function loadActivitySnapshot(
 
   const runs = runRows ?? [];
   const runIds = runs.map((run) => run.id);
-  const projectIds = [...new Set(runs.flatMap((run) => run.project_id ? [run.project_id] : []))];
+  const runsById = new Map(runs.map((run) => [run.id, run]));
+  const resolvedProjectId = (run: (typeof runs)[number]) =>
+    run.project_id
+    ?? (run.parent_run_id ? runsById.get(run.parent_run_id)?.project_id ?? null : null);
+  const projectIds = [...new Set(runs.flatMap((run) => {
+    const id = resolvedProjectId(run);
+    return id ? [id] : [];
+  }))];
   const keyIds = [...new Set(runs.flatMap((run) => run.api_key_id ? [run.api_key_id] : []))];
   const contractIds = [...new Set(runs.flatMap((run) => run.contract_id ? [run.contract_id] : []))];
 
@@ -106,7 +115,7 @@ export async function loadActivitySnapshot(
   const attemptsResult = contractRowIds.length
     ? await supabase
         .from('remediation_attempts')
-        .select('id, contract_row_id, n, verdict, feedback, created_at')
+        .select('id, contract_row_id, n, verdict, feedback, changed_files, result, created_at')
         .in('contract_row_id', contractRowIds)
         .order('n')
     : { data: [], error: null };
@@ -123,7 +132,15 @@ export async function loadActivitySnapshot(
   const attemptsByContractRow = new Map<string, ActivityAttempt[]>();
   for (const attempt of attemptsResult.data ?? []) {
     const list = attemptsByContractRow.get(attempt.contract_row_id) ?? [];
-    list.push(attempt);
+    list.push({
+      id: attempt.id,
+      n: attempt.n,
+      verdict: attempt.verdict,
+      feedback: attempt.feedback,
+      changed_files: attempt.changed_files as unknown as string[],
+      result: attempt.result,
+      created_at: attempt.created_at,
+    });
     attemptsByContractRow.set(attempt.contract_row_id, list);
   }
 
@@ -133,13 +150,15 @@ export async function loadActivitySnapshot(
     toolCount: TOOL_COUNT,
     runs: runs.map((run) => {
       const contractRowId = run.contract_id ? contractRowsById.get(run.contract_id) : undefined;
+      const projectId = resolvedProjectId(run);
       return {
         ...run,
         kind: run.kind as ActivityRun['kind'],
         status: run.status as ActivityRunStatus,
         progress: Number(run.progress),
         total: Number(run.total),
-        project_name: run.project_id ? projectNames.get(run.project_id) ?? null : null,
+        project_id: projectId,
+        project_name: projectId ? projectNames.get(projectId) ?? null : null,
         connection_name: run.api_key_id ? keyNames.get(run.api_key_id) ?? null : null,
         events: eventsByRun.get(run.id) ?? [],
         attempts: contractRowId ? attemptsByContractRow.get(contractRowId) ?? [] : [],

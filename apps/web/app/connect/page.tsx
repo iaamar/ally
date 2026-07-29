@@ -6,6 +6,28 @@ import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Ally MCP — Ally' };
 
+async function oauthServerReady(): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return false;
+  try {
+    const response = await fetch(
+      `${new URL(supabaseUrl).origin}/.well-known/oauth-authorization-server/auth/v1`,
+      { cache: 'no-store' },
+    );
+    if (!response.ok) return false;
+    const metadata = await response.json() as {
+      authorization_endpoint?: unknown;
+      token_endpoint?: unknown;
+      registration_endpoint?: unknown;
+    };
+    return typeof metadata.authorization_endpoint === 'string'
+      && typeof metadata.token_endpoint === 'string'
+      && typeof metadata.registration_endpoint === 'string';
+  } catch {
+    return false;
+  }
+}
+
 export default async function ConnectPage() {
   const supabase = await createClient();
   const {
@@ -13,28 +35,15 @@ export default async function ConnectPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const org = await ensureOrg(supabase, user);
-  const { data: keys } = await supabase
-    .from('api_keys')
-    .select('id, name, prefix, last_used_at')
-    .eq('org_id', org.id)
-    .order('last_used_at', { ascending: false, nullsFirst: false });
-
-  const lastUsed = keys?.find((key) => key.last_used_at)?.last_used_at ?? null;
-  const lastUsedLabel = lastUsed
-    ? `${new Intl.DateTimeFormat('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        timeZone: 'UTC',
-      }).format(new Date(lastUsed))} UTC`
-    : 'Not connected yet';
+  await ensureOrg(supabase, user);
+  const oauthReady = await oauthServerReady();
 
   return (
     <section className="connect-page">
       <ConnectorSetup
         endpoint={`${PRODUCTION_SITE_URL}/api/mcp`}
         accountEmail={user.email ?? ''}
-        lastUsedLabel={lastUsedLabel}
+        oauthReady={oauthReady}
       />
     </section>
   );

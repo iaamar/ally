@@ -9,9 +9,11 @@ import type { ContractKnowledge } from '@ally/shared';
 import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 import { z } from 'zod';
 import { createIngestDb } from '@/lib/ingest-db';
-import { processIngest } from '@/lib/ingest';
 import { hashApiKey } from '@/lib/keys';
 import { searchWcagKnowledge } from '@/lib/knowledge';
+import { getMcpBearerChallenge } from '@/lib/mcp-oauth';
+import { ALLY_MCP_SERVER_INFO } from '@/lib/mcp-server-info';
+import { ensureOrg } from '@/lib/orgs';
 import {
   getMcpPlatformClient,
   runWithMcpActivity,
@@ -100,21 +102,58 @@ function normalizeFiles(
   return { files: normalized };
 }
 
+function fileManifest(files: Array<{ path: string; content?: string; source?: string }>) {
+  return files.map((file) => ({
+    path: file.path.replaceAll('\\', '/'),
+    bytes: Buffer.byteLength(file.content ?? file.source ?? '', 'utf8'),
+  }));
+}
+
+function severitySummary(findings: Array<{ severity: string }>) {
+  return findings.reduce<Record<string, number>>((counts, finding) => {
+    counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function plannedChangesByFile(
+  contract: Awaited<ReturnType<typeof planHostedContract>>,
+) {
+  return contract.scope.allowedFiles.map((path) => ({
+    path,
+    changes: contract.targets
+      .filter((target) => target.file === path)
+      .map((target) => ({
+        rule: target.ruleId,
+        line: target.anchor.startLine,
+        severity: target.severity,
+        criteria: target.wcag,
+        fixClass: target.fixClass,
+        target: target.matchKey,
+      })),
+  }));
+}
+
 async function persistReport(
   projectName: string,
   report: Awaited<ReturnType<typeof scanSources>>,
   extra: HostedToolExtra,
 ): Promise<{ projectId: string; scanId: string; scanUrl: string }> {
-  const rawKey = extra.authInfo?.token;
-  const stored = await processIngest(
-    createIngestDb(getPlatformClient()),
-    rawKey ?? null,
-    { projectName, report },
-  );
-  if (stored.status !== 201) {
-    throw new Error(`Could not persist scan: ${JSON.stringify(stored.json)}`);
+  const orgId = extra.authInfo?.extra?.orgId;
+  const keyId = extra.authInfo?.extra?.keyId;
+  if (typeof orgId !== 'string') {
+    throw new Error('Authenticated Ally organization context is missing.');
   }
-  return stored.json as { projectId: string; scanId: string; scanUrl: string };
+  const db = createIngestDb(getPlatformClient());
+  if (typeof keyId === 'string') await db.touchKey(keyId);
+  const project = await db.upsertProject(orgId, projectName);
+  const scan = await db.insertScan(project.id, report);
+  await db.insertFindings(scan.id, report.findings);
+  return {
+    projectId: project.id,
+    scanId: scan.id,
+    scanUrl: `/p/${project.id}/scans/${scan.id}`,
+  };
 }
 
 function formatKnowledge(result: Awaited<ReturnType<typeof searchWcagKnowledge>>): string {
@@ -133,24 +172,65 @@ async function verifyAllyToken(
   request: Request,
   bearerToken?: string,
 ): Promise<AuthInfo | undefined> {
-  if (!bearerToken?.startsWith('ally_sk_')) return undefined;
-  const db = createIngestDb(getPlatformClient());
-  const key = await db.findKeyOrg(hashApiKey(bearerToken));
-  if (!key) return undefined;
-  await db.touchKey(key.keyId);
+  if (!bearerToken) return undefined;
+  const clientName = (
+    request.headers.get('x-mcp-client-name')
+    ?? request.headers.get('user-agent')
+    ?? 'Unknown MCP client'
+  ).slice(0, 120);
+
+  if (bearerToken.startsWith('ally_sk_')) {
+    const db = createIngestDb(getPlatformClient());
+    const key = await db.findKeyOrg(hashApiKey(bearerToken));
+    if (!key) return undefined;
+    await db.touchKey(key.keyId);
+    return {
+      token: bearerToken,
+      scopes: ['ally:use'],
+      clientId: key.keyId,
+      extra: {
+        authMethod: 'api_key',
+        orgId: key.orgId,
+        keyId: key.keyId,
+        ...(key.keyName ? { keyName: key.keyName } : {}),
+        clientName,
+      },
+    };
+  }
+
+  const platform = getPlatformClient();
+  const {
+    data: { user },
+    error,
+  } = await platform.auth.getUser(bearerToken);
+  if (error || !user) return undefined;
+
+  const { data: existingOrg } = await platform
+    .from('orgs')
+    .select('id')
+    .eq('owner_user', user.id)
+    .maybeSingle();
+  const org = existingOrg ?? await ensureOrg(platform, user);
+
+  let oauthClientId = `oauth:${user.id}`;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(bearerToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { client_id?: unknown };
+    if (typeof payload.client_id === 'string') oauthClientId = payload.client_id;
+  } catch {
+    // getUser already validated the access token. Client metadata is optional.
+  }
+
   return {
     token: bearerToken,
     scopes: ['ally:use'],
-    clientId: key.keyId,
+    clientId: oauthClientId,
     extra: {
-      orgId: key.orgId,
-      keyId: key.keyId,
-      ...(key.keyName ? { keyName: key.keyName } : {}),
-      clientName: (
-        request.headers.get('x-mcp-client-name')
-        ?? request.headers.get('user-agent')
-        ?? 'Unknown MCP client'
-      ).slice(0, 120),
+      authMethod: 'oauth',
+      orgId: org.id,
+      userId: user.id,
+      clientName,
     },
   };
 }
@@ -170,6 +250,15 @@ const handler = createMcpHandler(
         readPlatform,
         async ({ query, version, levels, matchCount }, extra) =>
           runWithMcpActivity(name, extra, async (activity) => {
+            await activity.describe({
+              title: 'Search WCAG knowledge',
+              input: {
+                query: query.slice(0, 240),
+                version: version ?? 'any',
+                levels: levels ?? [],
+                requestedResults: matchCount ?? 8,
+              },
+            });
             await activity.progress(10, 'Preparing the WCAG query.', 'validate');
             await activity.progress(35, 'Searching semantic and lexical indexes.', 'search');
             const result = await searchWcagKnowledge(query, {
@@ -179,9 +268,20 @@ const handler = createMcpHandler(
               signal: activity.signal,
             });
             await activity.progress(90, `Found ${result.results.length} relevant passages.`, 'format', {
-              resultCount: result.results.length,
-              mode: result.mode,
+              input: { requestedResults: matchCount ?? 8 },
+              action: 'Rank semantic and lexical matches and format citations.',
+              output: {
+                resultCount: result.results.length,
+                mode: result.mode,
+                criteria: result.results
+                  .flatMap((hit) => hit.citation.criterion ? [hit.citation.criterion] : [])
+                  .slice(0, 12),
+              },
             });
+            await activity.complete(
+              `Found ${result.results.length} WCAG passages using ${result.mode} retrieval.`,
+              { resultCount: result.results.length, mode: result.mode },
+            );
             return textResult(JSON.stringify(result, null, 2));
           }),
       );
@@ -200,27 +300,62 @@ const handler = createMcpHandler(
         writePlatform,
         async ({ projectName, targetLevel, ignoreRules, files }, extra) =>
           runWithMcpActivity(name, extra, async (activity) => {
+            await activity.describe({
+              title: `Accessibility scan · ${projectName}`,
+              input: {
+                projectName,
+                targetLevel: targetLevel ?? 'AA',
+                files: fileManifest(files),
+                ignoreRules: ignoreRules ?? [],
+              },
+            });
             await activity.progress(5, 'Validating supplied source files.', 'validate', {
-              fileCount: files.length,
+              input: { files: fileManifest(files) },
+              action: 'Validate file paths, supported extensions, and payload limits.',
+              output: { fileCount: files.length },
             });
             const normalized = normalizeFiles(files);
             if (normalized.error || !normalized.files) return errorResult(normalized.error ?? 'Invalid files.');
             await activity.progress(25, `Scanning ${normalized.files.length} files.`, 'scan', {
-              fileCount: normalized.files.length,
+              input: { files: normalized.files.map((file) => file.path) },
+              action: `Run deterministic accessibility rules at WCAG ${targetLevel ?? 'AA'}.`,
             });
             const report = await scanSources(projectName, normalized.files, {
               targetLevel: targetLevel ?? 'AA',
               ignoreRules: ignoreRules ?? [],
             }, activity.signal);
             await activity.progress(75, 'Persisting scan and findings.', 'persist', {
-              findingCount: report.summary.total,
+              action: 'Store the scan summary and finding metadata without source content.',
+              output: {
+                findingCount: report.summary.total,
+                score: report.summary.score,
+                severity: severitySummary(report.findings),
+              },
             });
             const stored = await persistReport(projectName, report, extra);
             await activity.link({ projectId: stored.projectId });
             await activity.progress(95, 'Scan is available in the Ally workspace.', 'complete', {
-              scanId: stored.scanId,
-              score: report.summary.score,
+              output: {
+                scanId: stored.scanId,
+                scanUrl: stored.scanUrl,
+                filesScanned: normalized.files.length,
+                findingCount: report.summary.total,
+                score: report.summary.score,
+                severity: severitySummary(report.findings),
+              },
             });
+            await activity.complete(
+              `Scanned ${normalized.files.length} files in ${projectName}: ${report.summary.total} findings, score ${report.summary.score}.`,
+              {
+                projectName,
+                scanId: stored.scanId,
+                scanUrl: stored.scanUrl,
+                filesScanned: normalized.files.length,
+                findingCount: report.summary.total,
+                score: report.summary.score,
+                severity: severitySummary(report.findings),
+              },
+            );
             return textResult(JSON.stringify({
               ...stored,
               report: {
@@ -243,22 +378,33 @@ const handler = createMcpHandler(
       readPlatform,
       async (_args, extra) =>
         runWithMcpActivity('get_ally_health', extra, async (activity) => {
+          await activity.describe({
+            title: 'Check Ally MCP health',
+            input: { checks: ['MCP transport', 'authentication', 'WCAG retrieval'] },
+          });
           const started = performance.now();
           await activity.progress(30, 'Checking WCAG retrieval.', 'knowledge');
           const knowledge = await searchWcagKnowledge(
             'WCAG 2.2 contrast minimum',
             { version: '2.2', levels: ['AA'], matchCount: 1, signal: activity.signal },
           );
+          const latencyMs = Math.round(performance.now() - started);
+          await activity.complete('Ally MCP and WCAG retrieval are healthy.', {
+            status: 'healthy',
+            knowledgeMode: knowledge.mode,
+            embeddingProvider: knowledge.embeddingProvider,
+            latencyMs,
+          });
           return textResult(JSON.stringify({
             status: 'healthy',
             transport: 'streamable_http',
-            authentication: 'ally_api_key',
+            authentication: 'oauth_default_api_key_fallback',
             exposedTools: 11,
             knowledge: {
               status: 'healthy',
               mode: knowledge.mode,
               embeddingProvider: knowledge.embeddingProvider,
-              latencyMs: Math.round(performance.now() - started),
+              latencyMs,
             },
             capabilities: {
               nativeProgress: true,
@@ -286,14 +432,31 @@ const handler = createMcpHandler(
       readPlatform,
       async ({ ruleId, snippet, wcag }, extra) =>
         runWithMcpActivity('explain_finding', extra, async (activity) => {
+          await activity.describe({
+            title: `Explain finding · ${ruleId}`,
+            input: {
+              ruleId,
+              criteria: wcag ?? [],
+              codeProvided: Boolean(snippet),
+            },
+          });
           await activity.progress(25, 'Finding relevant WCAG criteria.', 'search');
           const knowledge = await searchWcagKnowledge(
             `${ruleId.replaceAll('-', ' ')} ${wcag?.join(' ') ?? ''}`.trim(),
             { version: '2.2', matchCount: 4, signal: activity.signal },
           );
           await activity.progress(90, 'Preparing grounded explanation context.', 'format', {
-            resultCount: knowledge.results.length,
+            action: 'Combine the finding rule with retrieved WCAG evidence.',
+            output: {
+              resultCount: knowledge.results.length,
+              criteria: knowledge.results
+                .flatMap((hit) => hit.citation.criterion ? [hit.citation.criterion] : []),
+            },
           });
+          await activity.complete(
+            `Prepared a grounded explanation for ${ruleId} from ${knowledge.results.length} WCAG passages.`,
+            { ruleId, criteria: wcag ?? [], sourceCount: knowledge.results.length },
+          );
           return textResult([
             `Rule: ${ruleId}`,
             wcag?.length ? `Criteria: ${wcag.join(', ')}` : '',
@@ -323,10 +486,30 @@ const handler = createMcpHandler(
       writePlatform,
       async ({ projectName, targetLevel, files, ruleId, clusterKey, fingerprints, maxFindings }, extra) =>
         runWithMcpActivity('plan_fixes', extra, async (activity) => {
-          await activity.progress(5, 'Validating contract source.', 'validate');
+          await activity.describe({
+            title: `Plan fixes · ${projectName}`,
+            input: {
+              projectName,
+              targetLevel: targetLevel ?? 'AA',
+              files: fileManifest(files),
+              selection: {
+                ruleId: ruleId ?? null,
+                clusterKey: clusterKey ?? null,
+                fingerprints: fingerprints ?? [],
+                maxFindings: maxFindings ?? 10,
+              },
+            },
+          });
+          await activity.progress(5, 'Validating contract source.', 'validate', {
+            input: { files: fileManifest(files) },
+            action: 'Validate the exact source set that will define the remediation baseline.',
+          });
           const normalized = normalizeFiles(files);
           if (normalized.error || !normalized.files) return errorResult(normalized.error ?? 'Invalid files.');
-          await activity.progress(25, 'Scanning the contract baseline.', 'scan');
+          await activity.progress(25, 'Scanning the contract baseline.', 'scan', {
+            input: { files: normalized.files.map((file) => file.path) },
+            action: 'Create a deterministic baseline and identify matching defects.',
+          });
           const report = await scanSources(projectName, normalized.files, {
             targetLevel: targetLevel ?? 'AA',
           }, activity.signal);
@@ -337,7 +520,9 @@ const handler = createMcpHandler(
           });
           const criteria = [...new Set(probe.targets.flatMap((target) => target.wcag))];
           await activity.progress(50, 'Grounding the contract in WCAG guidance.', 'knowledge', {
-            criteria,
+            input: { criteria },
+            action: 'Retrieve relevant WCAG guidance for the selected remediation targets.',
+            output: { targetCount: probe.targets.length, criteria },
           });
           const knowledgeResult = criteria.length
             ? await searchWcagKnowledge(criteria.join(' '), {
@@ -360,7 +545,15 @@ const handler = createMcpHandler(
             options: { ruleId, clusterKey, fingerprints, maxFindings },
             knowledge,
           });
-          await activity.progress(70, 'Persisting scan and remediation contract.', 'persist');
+          const plannedFiles = plannedChangesByFile(contract);
+          await activity.progress(70, 'Persisting scan and remediation contract.', 'persist', {
+            action: 'Store the baseline, allowed scope, acceptance checks, and per-file plan.',
+            output: {
+              contractId: contract.contractId,
+              targetCount: contract.targets.length,
+              files: plannedFiles,
+            },
+          });
           const storedScan = await persistReport(projectName, report, extra);
           const workflowRunId = await activity.createWorkflow(
             storedScan.projectId,
@@ -386,11 +579,36 @@ const handler = createMcpHandler(
             'waiting',
             'Waiting for the coding agent to implement the contracted fixes.',
             40,
-            { contractId: contract.contractId, targets: contract.targets.length },
+            {
+              input: {
+                contractId: contract.contractId,
+                allowedFiles: contract.scope.allowedFiles,
+              },
+              action: 'Apply only the contracted changes, then submit the full baseline file set for verification.',
+              output: {
+                targetCount: contract.targets.length,
+                files: plannedFiles,
+              },
+            },
           );
           await activity.progress(95, 'Remediation contract is ready.', 'complete', {
-            contractId: contract.contractId,
+            output: {
+              contractId: contract.contractId,
+              targetCount: contract.targets.length,
+              files: plannedFiles,
+              acceptance: contract.acceptance,
+            },
           });
+          await activity.complete(
+            `Planned ${contract.targets.length} fixes across ${plannedFiles.length} files in ${projectName}.`,
+            {
+              projectName,
+              contractId: contract.contractId,
+              targetCount: contract.targets.length,
+              files: plannedFiles,
+              acceptance: contract.acceptance,
+            },
+          );
           return textResult(JSON.stringify({
             contract,
             projectId: storedScan.projectId,
@@ -410,22 +628,51 @@ const handler = createMcpHandler(
         contractId: z.string().min(1).max(120),
         message: z.string().min(1).max(500),
         status: z.enum(['running', 'waiting', 'succeeded', 'failed', 'info']).default('running').optional(),
+        updates: z.array(z.object({
+          path: z.string().min(1).max(500),
+          summary: z.string().min(1).max(500),
+          rules: z.array(z.string().min(1).max(120)).max(20).optional(),
+        })).max(100).optional(),
       },
       writePlatform,
-      async ({ contractId, message, status }, extra) =>
+      async ({ contractId, message, status, updates }, extra) =>
         runWithMcpActivity('record_progress', extra, async (activity) => {
           const stored = await loadHostedContract(activity.orgId, contractId);
           if (!stored) return errorResult(`Contract ${contractId} was not found.`);
           if (!stored.workflowRunId) return errorResult(`Contract ${contractId} has no activity run.`);
+          await activity.describe({
+            title: `Implement fixes · ${stored.projectName}`,
+            input: {
+              projectName: stored.projectName,
+              contractId,
+              status: status ?? 'running',
+              updates: updates ?? [],
+            },
+          });
           await activity.link({ parentRunId: stored.workflowRunId, contractId });
+          const affectedFiles = updates?.map((update) => update.path)
+            ?? stored.contract.scope.allowedFiles;
           await activity.workflowEvent(
             stored.workflowRunId,
             'implement',
             status ?? 'running',
             message,
             55,
-            { contractId },
+            {
+              input: { contractId, allowedFiles: stored.contract.scope.allowedFiles },
+              action: message,
+              output: {
+                affectedFiles,
+                updates: updates ?? [],
+              },
+            },
           );
+          await activity.complete(message, {
+            projectName: stored.projectName,
+            contractId,
+            affectedFiles,
+            updates: updates ?? [],
+          });
           return textResult('Progress recorded.');
         }),
     );
@@ -441,16 +688,40 @@ const handler = createMcpHandler(
       writePlatform,
       async ({ contractId, files, targetLevel }, extra) =>
         runWithMcpActivity('verify_fixes', extra, async (activity) => {
-          await activity.progress(5, 'Loading the remediation contract.', 'load');
+          await activity.progress(5, 'Loading the remediation contract.', 'load', {
+            input: { contractId },
+            action: 'Load the baseline, target identities, file scope, and acceptance policy.',
+          });
           const stored = await loadHostedContract(activity.orgId, contractId);
           if (!stored) return errorResult(`Contract ${contractId} was not found.`);
+          await activity.describe({
+            title: `Verify fixes · ${stored.projectName}`,
+            input: {
+              projectName: stored.projectName,
+              contractId,
+              targetLevel: targetLevel ?? 'AA',
+              files: fileManifest(files),
+              plannedTargets: stored.contract.targets.map((target) => ({
+                file: target.file,
+                line: target.anchor.startLine,
+                rule: target.ruleId,
+                criteria: target.wcag,
+              })),
+            },
+          });
           const normalized = normalizeFiles(files);
           if (normalized.error || !normalized.files) return errorResult(normalized.error ?? 'Invalid files.');
           await activity.link({
             ...(stored.workflowRunId ? { parentRunId: stored.workflowRunId } : {}),
             contractId,
           });
-          await activity.progress(25, 'Validating the exact contract file set.', 'validate');
+          await activity.progress(25, 'Validating the exact contract file set.', 'validate', {
+            input: {
+              expectedFiles: stored.contract.baseline.fileSet,
+              suppliedFiles: normalized.files.map((file) => file.path),
+            },
+            action: 'Reject missing files, extra files, unchanged attempts, and edits outside contract scope.',
+          });
           const attempts = await loadHostedAttempts(stored.rowId);
           if (stored.workflowRunId) {
             await activity.workflowEvent(
@@ -459,10 +730,20 @@ const handler = createMcpHandler(
               'running',
               `Evaluating remediation attempt ${attempts.length + 1}.`,
               70,
-              { contractId, attempt: attempts.length + 1 },
+              {
+                input: {
+                  contractId,
+                  attempt: attempts.length + 1,
+                  files: normalized.files.map((file) => file.path),
+                },
+                action: 'Re-scan edited files and compare stable finding identities against the baseline.',
+              },
             );
           }
-          await activity.progress(50, 'Re-scanning the edited source.', 'scan');
+          await activity.progress(50, 'Re-scanning the edited source.', 'scan', {
+            input: { files: normalized.files.map((file) => file.path) },
+            action: 'Run the deterministic scanner and calculate score and regression deltas.',
+          });
           const evaluation = await evaluateHostedContract({
             contract: stored.contract,
             attempts,
@@ -471,7 +752,14 @@ const handler = createMcpHandler(
             signal: activity.signal,
           });
           await activity.progress(80, 'Persisting the deterministic verdict.', 'persist', {
-            verdict: evaluation.result.verdict,
+            action: 'Persist the immutable attempt, checks, changed files, and sanitized feedback.',
+            output: {
+              verdict: evaluation.result.verdict,
+              reason: evaluation.result.reason,
+              changedFiles: evaluation.attempt.changedFiles,
+              checks: evaluation.result.checks,
+              score: evaluation.result.score ?? null,
+            },
           });
           await saveHostedAttempt(stored.rowId, evaluation.attempt, evaluation.result);
           if (stored.workflowRunId) {
@@ -487,10 +775,28 @@ const handler = createMcpHandler(
                 contractId,
                 attempt: evaluation.result.attempt,
                 verdict: evaluation.result.verdict,
+                changedFiles: evaluation.attempt.changedFiles,
                 checks: evaluation.result.checks,
+                score: evaluation.result.score ?? null,
+                feedback: evaluation.result.feedback,
               },
             );
           }
+          await activity.complete(
+            `${evaluation.result.verdict === 'pass' ? 'Verified' : 'Verification found remaining work in'} ${evaluation.attempt.changedFiles.length} changed files for ${stored.projectName}.`,
+            {
+              projectName: stored.projectName,
+              contractId,
+              attempt: evaluation.result.attempt,
+              verdict: evaluation.result.verdict,
+              reason: evaluation.result.reason,
+              changedFiles: evaluation.attempt.changedFiles,
+              checks: evaluation.result.checks,
+              score: evaluation.result.score ?? null,
+              feedback: evaluation.result.feedback,
+              nextAction: evaluation.result.nextAction,
+            },
+          );
           return {
             ...textResult(JSON.stringify(evaluation.result, null, 2)),
             isError: evaluation.result.verdict !== 'pass',
@@ -505,6 +811,10 @@ const handler = createMcpHandler(
       readPlatform,
       async ({ limit }, extra) =>
         runWithMcpActivity('list_scans', extra, async (activity) => {
+          await activity.describe({
+            title: 'List accessibility scans',
+            input: { limit: limit ?? 10 },
+          });
           const db = getMcpPlatformClient();
           const { data: projects } = await db.from('projects')
             .select('id, name')
@@ -517,6 +827,10 @@ const handler = createMcpHandler(
             .order('created_at', { ascending: false })
             .limit(limit ?? 10);
           const names = new Map((projects ?? []).map((project) => [project.id, project.name]));
+          await activity.complete(`Listed ${scans?.length ?? 0} recent accessibility scans.`, {
+            scanCount: scans?.length ?? 0,
+            projects: [...new Set((scans ?? []).map((scan) => names.get(scan.project_id) ?? 'unknown'))],
+          });
           return textResult((scans ?? []).map((scan) =>
             `- ${scan.id}  ${names.get(scan.project_id) ?? 'unknown'}  score ${scan.score}/100  ${scan.files_scanned} files  ${scan.created_at}`,
           ).join('\n') || 'No scans yet.');
@@ -534,6 +848,14 @@ const handler = createMcpHandler(
       readPlatform,
       async ({ scanId, severity, limit }, extra) =>
         runWithMcpActivity('get_findings', extra, async (activity) => {
+          await activity.describe({
+            title: scanId ? `Read findings · ${scanId.slice(0, 8)}` : 'Read latest findings',
+            input: {
+              scanId: scanId ?? 'latest',
+              severity: severity ?? 'all',
+              limit: limit ?? 25,
+            },
+          });
           const db = getMcpPlatformClient();
           const { data: projects } = await db.from('projects').select('id').eq('org_id', activity.orgId);
           const projectIds = (projects ?? []).map((project) => project.id);
@@ -562,6 +884,12 @@ const handler = createMcpHandler(
             .limit(limit ?? 25);
           if (severity) query = query.eq('severity', severity);
           const { data: findings } = await query;
+          await activity.complete(`Loaded ${findings?.length ?? 0} findings from scan ${targetScanId}.`, {
+            scanId: targetScanId,
+            findingCount: findings?.length ?? 0,
+            severity: severity ?? 'all',
+            rules: [...new Set((findings ?? []).map((finding) => finding.rule_id))].slice(0, 25),
+          });
           return textResult(JSON.stringify({
             scanId: targetScanId,
             findings: findings ?? [],
@@ -570,13 +898,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: 'ally-remote-mcp', version: '0.2.0' },
+    serverInfo: ALLY_MCP_SERVER_INFO,
     instructions: [
-      'Ally is an API-key-authenticated accessibility brain.',
+      'Ally is an OAuth-authenticated accessibility brain. Account-scoped API keys remain available only as a fallback for CI and non-interactive clients.',
       'Use search_wcag before stating WCAG requirements and explain_finding for grounded defect context.',
       'Use scan_accessibility, then plan_fixes, edit only contracted files, and call verify_fixes.',
       'If verification fails, follow its feedback and retry; stop when it passes or escalates.',
-      'Use record_progress during longer implementations so the Ally workspace stays current.',
+      'Use record_progress during longer implementations and include file-level updates so the Ally workspace records exactly what changed.',
       'This hosted server accepts supplied source but never stores source contents.',
       'Use the local Ally MCP for filesystem discovery, Playwright runtime scans, and approved project tests.',
     ].join(' '),
@@ -594,8 +922,17 @@ const authenticatedHandler = withMcpAuth(handler, verifyAllyToken, {
   requiredScopes: ['ally:use'],
 });
 
-export {
-  authenticatedHandler as GET,
-  authenticatedHandler as POST,
-  authenticatedHandler as DELETE,
-};
+async function oauthAwareHandler(request: Request) {
+  const response = await authenticatedHandler(request);
+  if (response.status === 401) {
+    response.headers.set(
+      'WWW-Authenticate',
+      getMcpBearerChallenge(new URL(request.url).origin),
+    );
+  }
+  return response;
+}
+
+export const GET = oauthAwareHandler;
+export const POST = oauthAwareHandler;
+export const DELETE = oauthAwareHandler;

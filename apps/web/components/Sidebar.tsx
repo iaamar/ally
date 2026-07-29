@@ -76,9 +76,6 @@ export function Sidebar() {
         </svg>
       </button>
       <nav aria-label="Primary" className="sidebar__nav">
-        <p className="nav-eyebrow">
-          <span className="nav-eyebrow__text">Workspace</span>
-        </p>
         {NAVIGATION.map((item) => {
           const active = activePath(pathname, item.href);
           return (
@@ -87,6 +84,7 @@ export function Sidebar() {
               className={`nav-link nav-link--${item.tone}${active ? ' nav-link--active' : ''}`}
               href={item.href}
               aria-current={active ? 'page' : undefined}
+              aria-label={item.label}
               title={collapsed ? item.label : undefined}
             >
               <span className="nav-link__icon" aria-hidden="true">

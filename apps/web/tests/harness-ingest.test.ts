@@ -74,6 +74,10 @@ describe('processHarnessEventIngest', () => {
       stage: 'scan',
       status: 'running',
       message: 'Scanning source files.',
+      detail: {
+        input: {},
+        action: 'Scanning source files.',
+      },
     }));
   });
 });

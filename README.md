@@ -6,43 +6,13 @@ Ally is an MCP-powered accessibility scanning platform that catches WCAG violati
 
 ## Quickstart
 
-### Claude Code
-
-Create one API key at **Ally → API Keys**, then build the local MCP server:
-
-```bash
-pnpm install
-pnpm --filter @ally/mcp build
-```
-
-From the project Claude Code should scan, register Ally using that single key:
-
-```bash
-claude mcp add --transport stdio --scope local ally \
-  -e ALLY_API_KEY=<KEY_FROM_ALLY> ALLY_API_URL=http://localhost:3000 \
-  -- node /ABSOLUTE/PATH/TO/EasyAllianceProduct/packages/mcp/dist/index.js
-
-claude mcp get ally
-```
-
-Claude Code supplies `CLAUDE_PROJECT_DIR`, so Ally scans the project from which
-Claude was launched unless a tool call provides another path. The same API key
-authorizes hosted WCAG search, scan and evaluation sync, and live dashboard
-events; Claude Code itself remains the completion/generator model.
-
-Inside Claude Code, run `/mcp` to confirm Ally is connected, then invoke the
-`remediation_harness` prompt.
-
 ### Codex
 
-The same Ally key can be registered with Codex:
+Register the hosted server, then authorize Ally in the browser:
 
 ```bash
-codex mcp add ally \
-  --env ALLY_API_KEY=<KEY_FROM_ALLY> \
-  --env ALLY_API_URL=http://localhost:3000 \
-  -- node /ABSOLUTE/PATH/TO/EasyAllianceProduct/packages/mcp/dist/index.js
-
+codex mcp add ally --url https://mcp-ally-server.vercel.app/api/mcp
+codex mcp login ally --scopes email
 codex mcp get ally
 ```
 
@@ -50,25 +20,54 @@ The Codex app, CLI, and IDE extension share this MCP configuration. Start a new
 Codex task after registration, use `/mcp` to inspect the connection when that
 command is available, then ask Codex to run Ally's `remediation_harness`.
 
+### Claude Code
+
+Claude Code uses the same browser-based OAuth connection:
+
+```bash
+claude mcp add --transport http --scope local ally \
+  https://mcp-ally-server.vercel.app/api/mcp
+claude mcp login ally
+claude mcp get ally
+```
+
+Inside Claude Code, run `/mcp` to confirm Ally is connected, then invoke the
+`remediation_harness` prompt.
+
 ### Hosted MCP
 
-The Vercel deployment exposes an API-key-authenticated Streamable HTTP endpoint
-at `/api/mcp`. Connect Claude Code without running the local Node process:
+The Vercel deployment exposes a Streamable HTTP endpoint at `/api/mcp`. It
+uses OAuth 2.1 browser sign-in by default for Codex, Claude, Cursor, and
+compatible remote MCP clients. Account-scoped API keys remain an advanced
+fallback for CI and non-interactive clients.
+
+Claude Desktop custom connector:
+
+1. Add `https://mcp-ally-server.vercel.app/api/mcp` as a custom connector.
+2. Sign in with the same email used for Ally.
+3. Review and authorize the requested MCP access.
+
+Connect Claude Code without running the local Node process:
 
 ```bash
 claude mcp add --transport http --scope local ally-remote \
-  https://mcp-ally-server.vercel.app/api/mcp \
-  --header "Authorization: Bearer <KEY_FROM_ALLY>"
+  https://mcp-ally-server.vercel.app/api/mcp
+claude mcp login ally-remote
+claude mcp get ally-remote
 ```
 
-Codex can read the same Ally key from its environment:
+Codex uses the same OAuth discovery and browser authorization:
 
 ```bash
-export ALLY_API_KEY=<KEY_FROM_ALLY>
 codex mcp add ally-remote \
-  --url https://mcp-ally-server.vercel.app/api/mcp \
-  --bearer-token-env-var ALLY_API_KEY
+  --url https://mcp-ally-server.vercel.app/api/mcp
+codex mcp login ally-remote --scopes email
+codex mcp get ally-remote
 ```
+
+For CI or an older non-interactive client, generate an Ally API key and send it
+as `Authorization: Bearer <ALLY_API_KEY>`. Do not use this fallback for normal
+interactive coding sessions.
 
 The hosted server supports the complete supplied-source loop:
 `search_wcag`, `explain_finding`, `scan_accessibility`, `plan_fixes`,

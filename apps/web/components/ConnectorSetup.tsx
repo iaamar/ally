@@ -1,36 +1,33 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import React, { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import {
   createApiKeyAction,
   type CreateApiKeyState,
 } from '@/app/keys/actions';
-import { ConnectorLogo } from '@/components/ConnectorLogo';
+import { ConnectorLogo, type ConnectorLogoId } from '@/components/ConnectorLogo';
 import { MCP_TOOLS } from '@/lib/mcp-tools';
-
-type ConnectorId = 'codex' | 'claude' | 'cursor' | 'manual';
 
 interface ConnectorSetupProps {
   endpoint: string;
   accountEmail: string;
-  lastUsedLabel: string;
+  oauthReady: boolean;
 }
 
-interface Connector {
-  id: ConnectorId;
+interface SupportedClient {
+  id: ConnectorLogoId;
   label: string;
 }
 
-const CONNECTORS: Connector[] = [
+const SUPPORTED_CLIENTS: SupportedClient[] = [
   { id: 'codex', label: 'Codex' },
-  { id: 'claude', label: 'Claude Code' },
+  { id: 'claude', label: 'Claude Code + Desktop' },
   { id: 'cursor', label: 'Cursor' },
-  { id: 'manual', label: 'Generic MCP' },
+  { id: 'manual', label: 'Other MCP clients' },
 ];
 
 const initialState: CreateApiKeyState = {};
-const KEY_PLACEHOLDER = 'PASTE_YOUR_ALLY_KEY_HERE';
 
 function CreateKeySubmit() {
   const { pending } = useFormStatus();
@@ -41,37 +38,24 @@ function CreateKeySubmit() {
   );
 }
 
-function shellValue(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
 export function ConnectorSetup({
   endpoint,
   accountEmail,
-  lastUsedLabel,
+  oauthReady,
 }: ConnectorSetupProps) {
-  const [active, setActive] = useState<ConnectorId>('codex');
   const [state, action] = useActionState(createApiKeyAction, initialState);
   const [copied, setCopied] = useState<string | null>(null);
   const keyDialogRef = useRef<HTMLDialogElement>(null);
-  const key = state.raw ?? KEY_PLACEHOLDER;
 
   const codexCommand = [
-    `export ALLY_API_KEY=${shellValue(key)}`,
-    `codex mcp add ally --url ${endpoint} --bearer-token-env-var ALLY_API_KEY`,
+    `codex mcp add ally --url ${endpoint}`,
+    'codex mcp login ally --scopes email',
     'codex mcp get ally',
   ].join('\n');
 
-  const codexProjectConfig = [
-    '[mcp_servers.ally]',
-    `url = "${endpoint}"`,
-    'bearer_token_env_var = "ALLY_API_KEY"',
-  ].join('\n');
-
   const claudeCommand = [
-    'claude mcp add --transport http --scope local ally \\',
-    `  ${endpoint} \\`,
-    `  --header "Authorization: Bearer ${key}"`,
+    `claude mcp add --transport http --scope local ally ${endpoint}`,
+    'claude mcp login ally',
     'claude mcp get ally',
   ].join('\n');
 
@@ -79,18 +63,9 @@ export function ConnectorSetup({
     mcpServers: {
       ally: {
         url: endpoint,
-        headers: {
-          Authorization: 'Bearer ${env:ALLY_API_KEY}',
-        },
       },
     },
   }, null, 2);
-
-  const manualConfig = [
-    `URL: ${endpoint}`,
-    'Transport: Streamable HTTP',
-    `Authorization: Bearer ${key}`,
-  ].join('\n');
 
   async function copy(label: string, value: string) {
     await navigator.clipboard.writeText(value);
@@ -98,217 +73,139 @@ export function ConnectorSetup({
     window.setTimeout(() => setCopied(null), 2_000);
   }
 
-  function selectTab(connectorId: ConnectorId) {
-    setActive(connectorId);
+  function openKeyDialog() {
+    keyDialogRef.current?.showModal();
     window.requestAnimationFrame(() => {
-      document.getElementById(`connector-tab-${connectorId}`)?.focus();
+      document.getElementById('connector-key-name')?.focus();
     });
   }
-
-  function handleTabKeyDown(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    connectorId: ConnectorId,
-  ) {
-    const currentIndex = CONNECTORS.findIndex(
-      (connector) => connector.id === connectorId,
-    );
-    let nextIndex = currentIndex;
-
-    if (event.key === 'ArrowRight') {
-      nextIndex = (currentIndex + 1) % CONNECTORS.length;
-    } else if (event.key === 'ArrowLeft') {
-      nextIndex = (currentIndex - 1 + CONNECTORS.length) % CONNECTORS.length;
-    } else if (event.key === 'Home') {
-      nextIndex = 0;
-    } else if (event.key === 'End') {
-      nextIndex = CONNECTORS.length - 1;
-    } else {
-      return;
-    }
-
-    event.preventDefault();
-    const nextConnector = CONNECTORS[nextIndex];
-    if (nextConnector) selectTab(nextConnector.id);
-  }
-
-  const activeConnector = CONNECTORS.find(
-    (connector) => connector.id === active,
-  )!;
 
   return (
     <>
       <header className="connect-hero">
         <div>
-          <p className="connect-eyebrow">Developer connectors</p>
+          <p className="connect-eyebrow">Developer connection</p>
           <h1>Ally MCP</h1>
           <p className="connect-intro">
-            Connect the accessibility brain to your coding agent. Search WCAG,
-            scan supplied source, plan bounded fixes, and verify repairs from the
-            repository where your agent is already working.
+            Bring accessibility intelligence into the tools where you already
+            write, review, and repair code.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary connect-create-key"
-          onClick={() => {
-            keyDialogRef.current?.showModal();
-            window.requestAnimationFrame(() => {
-              document.getElementById('connector-key-name')?.focus();
-            });
-          }}
-        >
-          Create API key
-        </button>
       </header>
 
-      <div className="connect-status-strip" aria-label="Connection summary">
-        <span><strong>Endpoint</strong> Streamable HTTP</span>
-        <span><strong>Tools</strong> {MCP_TOOLS.length} available</span>
-        <span><strong>Last activity</strong> {lastUsedLabel}</span>
-      </div>
-
       <div className="connector-workbench">
-        <div className="connector-config-card">
-          <div className="connector-tabs" role="tablist" aria-label="Coding agent">
-            {CONNECTORS.map((connector) => (
-              <button
-                key={connector.id}
-                type="button"
-                role="tab"
-                id={`connector-tab-${connector.id}`}
-                aria-selected={active === connector.id}
-                aria-controls={`connector-panel-${connector.id}`}
-                tabIndex={active === connector.id ? 0 : -1}
-                className="connector-tab"
-                onClick={() => setActive(connector.id)}
-                onKeyDown={(event) => handleTabKeyDown(event, connector.id)}
-              >
+        <section className="connector-config-card" aria-labelledby="connect-guide-title">
+          <header className="connector-setup-heading">
+            <div>
+              <p className="connect-eyebrow">One connection</p>
+              <h2 id="connect-guide-title">Connect your coding tool</h2>
+              <p>
+                Add Ally once, sign in through your browser, and start using its
+                tools from your repository.
+              </p>
+            </div>
+            {oauthReady ? (
+              <span className="connector-setup-state">
+                <span aria-hidden="true" />
+                Ready to connect
+              </span>
+            ) : null}
+          </header>
+
+          <div className="connector-supported" aria-label="Supported coding tools">
+            {SUPPORTED_CLIENTS.map((client) => (
+              <div key={client.id} className="connector-supported__item">
                 <span
-                  className={`connector-tab__mark connector-tab__mark--${connector.id}`}
+                  className={`connector-supported__logo connector-supported__logo--${client.id}`}
                   aria-hidden="true"
                 >
-                  <ConnectorLogo id={connector.id} />
+                  <ConnectorLogo id={client.id} size={18} />
                 </span>
-                <strong>{connector.label}</strong>
-              </button>
+                <span>{client.label}</span>
+              </div>
             ))}
           </div>
 
-          <section
-            role="tabpanel"
-            id={`connector-panel-${active}`}
-            aria-labelledby={`connector-tab-${active}`}
-            className="connector-panel"
-          >
-            <div className="connector-panel__heading">
-              <div>
-                <p className="connect-eyebrow">Configure {activeConnector.label}</p>
-                <h2>Install Ally from your cloned repository</h2>
+          <div className="connector-panel">
+            {!oauthReady ? (
+              <div className="connector-setup-alert" role="alert">
+                <strong>Connection setup is temporarily unavailable.</strong>
+                <p>
+                  An Ally administrator needs to finish the sign-in service
+                  configuration before new connections can be added.
+                </p>
               </div>
-              <span className="badge">
-                <span className="badge__dot" aria-hidden="true" />
-                Hosted MCP
-              </span>
+            ) : null}
+
+            <InstructionStep number="1" title="Add Ally">
+              Create a remote MCP connection named <strong>Ally</strong> in your
+              coding tool. Claude Code and Claude Desktop use this same connection
+              and the same sign-in flow.
+            </InstructionStep>
+
+            <InstructionStep number="2" title="Use the Ally server URL">
+              Paste this URL when your tool asks for a remote or custom MCP server.
+              <CodeBlock
+                label="Ally MCP server"
+                value={endpoint}
+                copied={copied}
+                onCopy={copy}
+                copyLabel="Copy URL"
+              />
+            </InstructionStep>
+
+            <InstructionStep number="3" title="Sign in and verify">
+              Continue when your tool opens Ally in the browser. After signing in,
+              return to your tool and ask it to run <code>get_ally_health</code>.
+            </InstructionStep>
+
+            <details className="connector-advanced connector-cli-setup">
+              <summary>Command-line and project configuration</summary>
+              <p>
+                Prefer a terminal or project file? These recipes create the same
+                Ally connection shown above.
+              </p>
+              <div className="connector-cli-grid">
+                <CodeBlock
+                  label="Codex"
+                  value={codexCommand}
+                  copied={copied}
+                  onCopy={copy}
+                />
+                <CodeBlock
+                  label="Claude Code"
+                  value={claudeCommand}
+                  copied={copied}
+                  onCopy={copy}
+                />
+                <CodeBlock
+                  label="Cursor · .cursor/mcp.json"
+                  value={cursorConfig}
+                  copied={copied}
+                  onCopy={copy}
+                />
+              </div>
+              <p className="connector-cli-note">
+                In Claude Desktop, open <strong>Settings → Connectors</strong>,
+                add a custom connector, and use the same Ally server URL.
+              </p>
+            </details>
+
+            <div className="connector-secondary-action">
+              <div>
+                <strong>Connecting CI or a service account?</strong>
+                <p>
+                  Create an API key only for automation that cannot complete a
+                  browser sign-in.
+                </p>
+              </div>
+              <div>
+                <button type="button" className="btn-ghost" onClick={openKeyDialog}>
+                  Create API key
+                </button>
+                <a href="/keys">Manage keys</a>
+              </div>
             </div>
-
-            {active === 'codex' ? (
-              <>
-                <InstructionStep number="1" title="Open the clone">
-                  In Terminal, change into the repository Codex should work on.
-                </InstructionStep>
-                <InstructionStep number="2" title="Register Ally">
-                  Keep the API key in the environment used to launch Codex. Restart
-                  the Codex app or IDE after setting it.
-                  <CodeBlock
-                    label="Codex install command"
-                    value={codexCommand}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </InstructionStep>
-                <details className="connector-advanced">
-                  <summary>Use project-scoped Codex configuration</summary>
-                  <p>
-                    Put this in <code>.codex/config.toml</code> for a trusted clone.
-                    Commit only the environment variable name, never the API key.
-                  </p>
-                  <CodeBlock
-                    label="Codex project configuration"
-                    value={codexProjectConfig}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </details>
-                <InstructionStep number="3" title="Start a new Codex task">
-                  Confirm Ally is available, then ask: “Use Ally to scan this repository.”
-                </InstructionStep>
-              </>
-            ) : null}
-
-            {active === 'claude' ? (
-              <>
-                <InstructionStep number="1" title="Open the clone">
-                  Run the command from the repository Claude Code should inspect.
-                </InstructionStep>
-                <InstructionStep number="2" title="Register Ally">
-                  <CodeBlock
-                    label="Claude Code install command"
-                    value={claudeCommand}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </InstructionStep>
-                <InstructionStep number="3" title="Verify the connection">
-                  Start Claude Code, run <code>/mcp</code>, and confirm <strong>ally</strong>
-                  is connected.
-                </InstructionStep>
-              </>
-            ) : null}
-
-            {active === 'cursor' ? (
-              <>
-                <InstructionStep number="1" title="Set the secret">
-                  Export <code>ALLY_API_KEY</code> before launching Cursor.
-                  <CodeBlock
-                    label="Cursor environment"
-                    value={`export ALLY_API_KEY=${shellValue(key)}\ncursor .`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </InstructionStep>
-                <InstructionStep number="2" title="Add project configuration">
-                  Save this as <code>.cursor/mcp.json</code> in the clone.
-                  <CodeBlock
-                    label="Cursor MCP configuration"
-                    value={cursorConfig}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </InstructionStep>
-                <InstructionStep number="3" title="Enable Ally">
-                  Open Cursor settings, select MCP, and confirm Ally appears in
-                  Available Tools.
-                </InstructionStep>
-              </>
-            ) : null}
-
-            {active === 'manual' ? (
-              <>
-                <InstructionStep number="1" title="Create a Streamable HTTP connection">
-                  Use these values in any client that accepts a remote MCP endpoint.
-                  <CodeBlock
-                    label="Generic MCP connection"
-                    value={manualConfig}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                </InstructionStep>
-                <InstructionStep number="2" title="Verify the catalog">
-                  Call <code>get_ally_health</code>, then list the {MCP_TOOLS.length}
-                  available tools.
-                </InstructionStep>
-              </>
-            ) : null}
 
             <div className="connector-boundary">
               <strong>Your code stays under your agent&apos;s control.</strong>
@@ -317,8 +214,8 @@ export function ConnectorSetup({
                 It persists findings and verification metadata, not submitted source.
               </p>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
 
         <aside className="mcp-tool-catalog" aria-labelledby="mcp-tools-heading">
           <div className="mcp-tool-catalog__heading">
@@ -390,11 +287,12 @@ export function ConnectorSetup({
                   name="name"
                   required
                   maxLength={120}
-                  placeholder="e.g. Codex — MacBook Pro"
+                  placeholder="e.g. CI accessibility checks"
                 />
               </div>
               <p className="text-muted">
-                This account-scoped key authorizes MCP tools for {accountEmail || 'your Ally account'}.
+                This account-scoped key authorizes MCP tools for{' '}
+                {accountEmail || 'your Ally account'}.
               </p>
               <CreateKeySubmit />
             </form>
@@ -416,7 +314,7 @@ function InstructionStep({
 }: {
   number: string;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="connector-step">
@@ -434,18 +332,20 @@ function CodeBlock({
   value,
   copied,
   onCopy,
+  copyLabel = 'Copy',
 }: {
   label: string;
   value: string;
   copied: string | null;
   onCopy: (label: string, value: string) => Promise<void>;
+  copyLabel?: string;
 }) {
   return (
     <div className="connector-code">
       <div className="connector-code__bar">
         <span>{label}</span>
         <button type="button" className="btn-ghost" onClick={() => onCopy(label, value)}>
-          {copied === label ? 'Copied' : 'Copy'}
+          {copied === label ? 'Copied' : copyLabel}
         </button>
       </div>
       <pre><code>{value}</code></pre>

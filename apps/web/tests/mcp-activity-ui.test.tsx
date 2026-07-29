@@ -63,7 +63,14 @@ function snapshot(): ActivitySnapshot {
         progress: 50,
         total: 100,
         message: 'Scanning source files.',
-        detail: {},
+        detail: {
+          input: {
+            projectName: 'Demo',
+            files: [{ path: 'src/App.tsx', bytes: 480 }],
+          },
+          action: 'Run deterministic accessibility rules.',
+          output: { findingCount: 3 },
+        },
         created_at: now,
       }],
       attempts: [],
@@ -78,7 +85,7 @@ describe('MCP activity dashboard', () => {
     expect(screen.getByText('Healthy')).toBeTruthy();
     expect(screen.getByText('11')).toBeTruthy();
     const progress = screen.getByRole('progressbar', {
-      name: 'scan_accessibility progress: 50 of 100',
+      name: 'Accessibility scan · Demo progress: 50 of 100',
     });
     expect(progress.getAttribute('value')).toBe('50');
     expect(progress.getAttribute('max')).toBe('100');
@@ -93,5 +100,63 @@ describe('MCP activity dashboard', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'History' }));
     expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.getByText('No matching activity')).toBeTruthy();
+  });
+
+  it('shows what a completed verification checked and changed', () => {
+    const completed = snapshot();
+    completed.runs[0] = {
+      ...completed.runs[0],
+      tool_name: 'verify_fixes',
+      status: 'succeeded',
+      progress: 100,
+      current_stage: 'complete',
+      message: 'Verified 1 changed file for Demo.',
+      completed_at: completed.generatedAt,
+      duration_ms: 1200,
+      events: [{
+        id: 2,
+        run_id: 'run-1',
+        stage: 'complete',
+        status: 'succeeded',
+        progress: 100,
+        total: 100,
+        message: 'Verified 1 changed file for Demo.',
+        detail: {
+          input: {
+            projectName: 'Demo',
+            contractId: 'contract-1',
+            files: [{ path: 'src/App.tsx', bytes: 510 }],
+          },
+          action: 'Compare stable finding identities against the baseline.',
+          output: {
+            verdict: 'pass',
+            changedFiles: ['src/App.tsx'],
+            checks: [{ id: 'targets_resolved', pass: true }],
+          },
+        },
+        created_at: completed.generatedAt,
+      }],
+      attempts: [{
+        id: 'attempt-1',
+        n: 1,
+        verdict: 'pass',
+        feedback: 'All contracted findings are resolved.',
+        changed_files: ['src/App.tsx'],
+        result: {
+          verdict: 'pass',
+          checks: [{ id: 'targets_resolved', pass: true }],
+        },
+        created_at: completed.generatedAt,
+      }],
+    };
+
+    render(<McpActivityDashboard initialSnapshot={completed} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
+    fireEvent.click(screen.getByText('Fix verification · Demo'));
+
+    expect(screen.getAllByText('Verified 1 changed file for Demo.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('src/App.tsx').length).toBeGreaterThan(0);
+    expect(screen.getByText('Attempt 1: pass')).toBeTruthy();
+    expect(screen.getByText('Verification evidence')).toBeTruthy();
   });
 });
