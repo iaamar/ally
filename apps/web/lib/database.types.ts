@@ -14,41 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      agent_heartbeats: {
-        Row: {
-          agent_id: string
-          id: string
-          last_seen_at: string
-          metadata: Json
-          org_id: string
-          project_name: string
-        }
-        Insert: {
-          agent_id: string
-          id?: string
-          last_seen_at?: string
-          metadata?: Json
-          org_id: string
-          project_name?: string
-        }
-        Update: {
-          agent_id?: string
-          id?: string
-          last_seen_at?: string
-          metadata?: Json
-          org_id?: string
-          project_name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_heartbeats_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       api_keys: {
         Row: {
           created_at: string
@@ -557,63 +522,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "run_events_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "remediation_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      scan_requests: {
-        Row: {
-          claimed_by: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          org_id: string
-          params: Json
-          project_name: string
-          requested_by: string | null
-          run_id: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          claimed_by?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          org_id: string
-          params?: Json
-          project_name?: string
-          requested_by?: string | null
-          run_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          claimed_by?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          org_id?: string
-          params?: Json
-          project_name?: string
-          requested_by?: string | null
-          run_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scan_requests_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "scan_requests_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "remediation_runs"

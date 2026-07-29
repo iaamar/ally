@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { ThemeToggle, THEME_INIT_SCRIPT } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/server';
 import './globals.css';
+import './product.css';
 
 export const metadata: Metadata = {
   title: 'Ally Dashboard',
@@ -45,8 +46,8 @@ export default async function RootLayout({
       </head>
       <body>
         <SkipLink />
-        <div className="app">
-          <header className="topbar">
+        <div className={`app${user ? '' : ' app--guest'}`}>
+          <header className={`topbar${user ? '' : ' topbar--guest'}`}>
             <a className="brand" href="/">
               <AllyMark />
               <span className="brand__name">Ally</span>
@@ -71,8 +72,8 @@ export default async function RootLayout({
             </div>
           </header>
 
-          <div className="app__body">
-            <Sidebar />
+          <div className={`app__body${user ? '' : ' app__body--guest'}`}>
+            {user ? <Sidebar /> : null}
 
             <main id="main" className="content">
               {children}

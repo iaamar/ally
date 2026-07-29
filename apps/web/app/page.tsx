@@ -25,9 +25,20 @@ export default async function Home() {
 
   if (orgIds.length === 0) {
     return (
-      <section>
-        <h1>Projects</h1>
-        <p className="empty">No projects yet &mdash; sync a scan from the CLI.</p>
+      <section className="projects-page">
+        <header className="page-heading page-heading--hero">
+          <div>
+            <p className="page-kicker">Workspace overview</p>
+            <h1>Projects</h1>
+            <p className="text-muted">Accessibility health across every connected codebase.</p>
+          </div>
+        </header>
+        <div className="empty empty--feature">
+          <span className="empty__icon" aria-hidden="true">⌁</span>
+          <strong>Connect your first codebase</strong>
+          <p>Run an Ally scan from your coding agent and this workspace will fill with findings, trends, and verified fixes.</p>
+          <a className="btn-primary" href="/connect">Connect Ally MCP</a>
+        </div>
       </section>
     );
   }
@@ -40,9 +51,20 @@ export default async function Home() {
 
   if (!projects || projects.length === 0) {
     return (
-      <section>
-        <h1>Projects</h1>
-        <p className="empty">No projects yet &mdash; sync a scan from the CLI.</p>
+      <section className="projects-page">
+        <header className="page-heading page-heading--hero">
+          <div>
+            <p className="page-kicker">Workspace overview</p>
+            <h1>Projects</h1>
+            <p className="text-muted">Accessibility health across every connected codebase.</p>
+          </div>
+        </header>
+        <div className="empty empty--feature">
+          <span className="empty__icon" aria-hidden="true">⌁</span>
+          <strong>Connect your first codebase</strong>
+          <p>Run an Ally scan from your coding agent and this workspace will fill with findings, trends, and verified fixes.</p>
+          <a className="btn-primary" href="/connect">Connect Ally MCP</a>
+        </div>
       </section>
     );
   }
@@ -91,11 +113,17 @@ export default async function Home() {
     .at(-1) as string | undefined;
 
   return (
-    <section>
-      <h1>Projects</h1>
-      <p className="text-muted" style={{ marginBottom: '0.5rem' }}>
-        Accessibility health across your synced projects.
-      </p>
+    <section className="projects-page">
+      <header className="page-heading page-heading--hero">
+        <div>
+          <p className="page-kicker">Workspace overview</p>
+          <h1>Projects</h1>
+          <p className="text-muted">
+            Accessibility health across every connected codebase.
+          </p>
+        </div>
+        <a className="btn-primary" href="/connect">Connect project</a>
+      </header>
 
       <div className="kpi-grid">
         <StatTile label="Projects" value={projectRows.length} />

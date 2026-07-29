@@ -75,6 +75,7 @@ export function Sidebar() {
           <path d={collapsed ? 'M6 3.5L10.5 8 6 12.5' : 'M10 3.5L5.5 8l4.5 4.5'} />
         </svg>
       </button>
+      <p className="sidebar__eyebrow">Workspace</p>
       <nav aria-label="Primary" className="sidebar__nav">
         {NAVIGATION.map((item) => {
           const active = activePath(pathname, item.href);

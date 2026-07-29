@@ -42,15 +42,24 @@ export default async function LoginPage({
   }
 
   return (
-    <section
-      style={{ display: 'flex', justifyContent: 'center', paddingTop: '3rem' }}
-    >
-      <div className="card card--pad-lg" style={{ width: '100%', maxWidth: '26rem' }}>
-        <h1>Sign in to Ally</h1>
-        <p className="text-muted" style={{ marginBottom: '1.25rem' }}>
-          We&rsquo;ll email you a magic link &mdash; no password needed.
-        </p>
+    <section className="login-page">
+      <div className="login-card">
+        <div className="login-card__intro">
+          <p className="page-kicker">Developer accessibility workspace</p>
+          <h1>Build accessible software with a closed feedback loop.</h1>
+          <p>Scan code, understand WCAG requirements, plan repairs, and verify every fix from the tools you already use.</p>
+          <div className="login-card__signal" aria-hidden="true">
+            <span>Scan</span><i /><span>Plan</span><i /><span>Verify</span>
+          </div>
+        </div>
+        <div className="login-card__form">
+          <span className="login-card__mark" aria-hidden="true">A</span>
+          <h2>Sign in to Ally</h2>
+          <p className="text-muted">
+            We&rsquo;ll email you a secure magic link. No password required.
+          </p>
         <LoginForm action={signIn} params={params} />
+        </div>
       </div>
     </section>
   );

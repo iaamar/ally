@@ -1,14 +1,253 @@
 # Ally
 
-An accessibility engineer inside your coding agent.
+Ally is an accessibility engineering platform that connects an AI coding agent
+to deterministic WCAG scanning, grounded guidance, remediation planning, fix
+verification, and a durable Traces dashboard.
 
-Ally is an MCP-powered accessibility scanning platform that catches WCAG violations in your JSX and HTML before they ship. It combines static analysis, runtime auditing, and LLM-assisted reasoning in a 3-pass pipeline.
+It is designed as a closed feedback loop:
 
-## Quickstart
+> Understand → Scan → Plan → Implement → Verify → Repeat
+
+The AI agent coordinates the work. Ally's engine and evaluator decide whether
+the accessibility result actually improved.
+
+## What Ally includes
+
+- A static accessibility engine for HTML, JavaScript, TypeScript, JSX, and TSX.
+- Optional Playwright, axe-core, custom runtime checks, and approved test gates.
+- Hosted and local Model Context Protocol (MCP) servers.
+- OAuth 2.1 browser authorization for interactive hosted MCP clients.
+- Metadata-filtered WCAG hybrid search with a lexical fallback.
+- Deterministic remediation contracts and three-attempt verification.
+- A Next.js workspace for projects, findings, API keys, assistant chat, and
+  real-time MCP traces.
+- A dedicated BGE embedding service for scalable query embeddings.
+
+Ally does **not** continuously watch a repository or poll for code changes.
+Scans and verifications run only when a user or connected coding agent invokes
+the corresponding tool.
+
+## System architecture
+
+```mermaid
+flowchart LR
+    subgraph Clients["Developer clients"]
+        COD["Codex"]
+        CLAUDE["Claude Code / Desktop"]
+        CURSOR["Cursor or another MCP client"]
+        WEB["Ally web workspace"]
+    end
+
+    subgraph Ally["Ally platform"]
+        HOSTED["Hosted MCP<br/>Next.js /api/mcp"]
+        LOCAL["Local MCP<br/>Node stdio"]
+        ENGINE["Accessibility engine<br/>static + deterministic evaluator"]
+        CHAT["Assistant and completion"]
+        TRACE["Run and event lifecycle"]
+    end
+
+    subgraph Data["Data and retrieval"]
+        SUPA["Supabase<br/>Auth + Postgres + Realtime + pgvector"]
+        BGE["BGE embedding service"]
+        LLM["Groq completion<br/>Anthropic fallback"]
+    end
+
+    COD -->|OAuth 2.1 / Streamable HTTP| HOSTED
+    CLAUDE -->|OAuth 2.1 / Streamable HTTP| HOSTED
+    CURSOR -->|OAuth or API key| HOSTED
+    COD -->|local filesystem access| LOCAL
+    CLAUDE -->|local filesystem access| LOCAL
+    WEB --> HOSTED
+
+    HOSTED --> ENGINE
+    LOCAL --> ENGINE
+    HOSTED --> TRACE
+    LOCAL -->|authenticated sync| TRACE
+    TRACE --> SUPA
+    ENGINE --> SUPA
+    CHAT --> BGE
+    BGE --> SUPA
+    CHAT --> LLM
+    WEB <-->|RLS + Realtime| SUPA
+```
+
+### Hosted versus local MCP
+
+| Capability | Hosted MCP | Local MCP |
+| --- | --- | --- |
+| Transport | Streamable HTTP | stdio |
+| Authentication | OAuth 2.1; API key fallback | Local process plus Ally API key for sync |
+| Source input | Explicit files supplied by the client | Direct filesystem discovery |
+| Static scan | Yes | Yes |
+| Runtime browser scan | No | Yes, with Playwright |
+| Project test scripts | No | Yes, allowlisted in `ally.config.json` |
+| Durable Traces | Yes | Yes, when connected to the Ally API |
+| Best use | Universal remote connection | Deep repository evaluation |
+
+The hosted server is stateless between requests. Supabase stores durable scans,
+findings, remediation contracts, attempts, MCP runs, and ordered events.
+
+## Repository structure
+
+```text
+.
+├── apps/
+│   └── web/                 # Next.js workspace, hosted MCP, OAuth, APIs
+├── packages/
+│   ├── engine/              # Static scanner, runtime scanner, evaluator
+│   ├── mcp/                 # Local stdio MCP and remediation harness
+│   └── shared/              # Shared schemas and domain types
+├── services/
+│   └── bge/                 # FastAPI BGE embedding service
+├── docs/
+│   └── architecture/        # Detailed implementation notes
+├── scripts/
+│   └── dogfood.mjs          # Scans Ally with its own engine
+├── compose.yml              # Web + BGE local/server stack
+├── Dockerfile               # Standalone Next.js production image
+└── ally.config.json         # Local scan/evaluation defaults
+```
+
+## Fresh-clone setup
+
+### Prerequisites
+
+- Node.js 22 (`.nvmrc` is included).
+- pnpm 9.15 through Corepack.
+- A Supabase project with Auth, Postgres, Realtime, and pgvector.
+- Docker Desktop when running the BGE service or complete Compose stack.
+- A Groq API key for assistant completion. Anthropic is an optional fallback.
+- Supabase CLI when applying migrations from the repository.
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/iaamar/allyMCP.git
+cd allyMCP
+
+nvm use
+corepack enable
+pnpm install --frozen-lockfile
+```
+
+### 2. Create the centralized environment file
+
+Ally loads one root `.env` file for the web app, MCP package, and Compose stack.
+
+```bash
+cp .env.example .env
+```
+
+Fill in the required Supabase and completion-provider values. Never commit
+`.env`; only `.env.example` belongs in Git.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Browser-safe Supabase key |
+| `SUPABASE_SECRET_KEY` | Yes | Server-only Supabase secret/service key |
+| `NEXT_PUBLIC_SITE_URL` | Yes | Public Ally origin; localhost in development |
+| `GROQ_API_KEY` | Recommended | Primary assistant completion provider |
+| `GROQ_MODEL` | No | Defaults to `qwen/qwen3.6-27b` |
+| `ANTHROPIC_API_KEY` | No | Optional completion fallback |
+| `ANTHROPIC_MODEL` | No | Optional Anthropic model override |
+| `BGE_EMBEDDING_URL` | Recommended | BGE service URL |
+| `BGE_EMBEDDING_TOKEN` | Production | Shared private BGE service token |
+| `BGE_REQUEST_TIMEOUT_MS` | No | Embedding request timeout |
+| `CRON_SECRET` | Production | Protects the telemetry cleanup route |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | Optional OpenTelemetry collector |
+
+### 3. Apply the Supabase migrations
+
+From the repository root:
+
+```bash
+cd apps/web
+pnpm dlx supabase link --project-ref YOUR_PROJECT_REF
+pnpm dlx supabase db push
+cd ../..
+```
+
+The migrations create the product schema, WCAG vector retrieval, durable
+remediation contracts, MCP runs/events, RLS policies, indexes, and Realtime
+publication. The latest migration removes the retired scan-request polling
+queue and agent heartbeat table.
+
+Do not edit historical migrations after they have been applied. Add a new
+migration for every schema change.
+
+### 4. Configure Supabase Auth and OAuth
+
+In Supabase:
+
+1. Set the Site URL to `http://localhost:3000` for local development.
+2. Add `http://localhost:3000/auth/callback` to the redirect allowlist.
+3. Enable the OAuth 2.1 server.
+4. Set the authorization/consent path to
+   `http://localhost:3000/oauth/consent`.
+5. For production, add the equivalent HTTPS site and callback URLs.
+
+Ally publishes protected-resource metadata at:
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/api/mcp
+```
+
+The authorization server is Supabase Auth. Ally owns the consent screen and
+the protected MCP resource.
+
+### 5. Start local development
+
+Start the BGE service:
+
+```bash
+docker compose up -d embeddings
+```
+
+Then start the web workspace:
+
+```bash
+pnpm --filter web dev --port 3000
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+The first BGE start downloads `BAAI/bge-large-en-v1.5`. Model weights are
+cached in `services/bge/.model-cache`, so later starts reuse them.
+
+### 6. Run the complete Docker stack
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Local endpoints:
+
+| Service | URL | Exposure |
+| --- | --- | --- |
+| Web workspace and hosted MCP | `http://localhost:3000` | Public to host |
+| BGE health | `http://127.0.0.1:8080/health/ready` | Host loopback only |
+| Hosted MCP | `http://localhost:3000/api/mcp` | Through web service |
+
+Useful commands:
+
+```bash
+docker compose logs -f web
+docker compose logs -f embeddings
+docker compose down
+```
+
+## Connect a coding agent
+
+Production MCP endpoint:
+
+```text
+https://mcp-ally-server.vercel.app/api/mcp
+```
 
 ### Codex
-
-Register the hosted server, then authorize Ally in the browser:
 
 ```bash
 codex mcp add ally --url https://mcp-ally-server.vercel.app/api/mcp
@@ -16,13 +255,9 @@ codex mcp login ally --scopes email
 codex mcp get ally
 ```
 
-The Codex app, CLI, and IDE extension share this MCP configuration. Start a new
-Codex task after registration, use `/mcp` to inspect the connection when that
-command is available, then ask Codex to run Ally's `remediation_harness`.
+Restart the task after registration if the new tools do not appear immediately.
 
 ### Claude Code
-
-Claude Code uses the same browser-based OAuth connection:
 
 ```bash
 claude mcp add --transport http --scope local ally \
@@ -31,140 +266,130 @@ claude mcp login ally
 claude mcp get ally
 ```
 
-Inside Claude Code, run `/mcp` to confirm Ally is connected, then invoke the
-`remediation_harness` prompt.
+Claude Desktop uses the same endpoint as a custom connector. Sign in with the
+same email address used for the Ally workspace.
 
-### Hosted MCP
+### Local MCP for repository access
 
-The Vercel deployment exposes a Streamable HTTP endpoint at `/api/mcp`. It
-uses OAuth 2.1 browser sign-in by default for Codex, Claude, Cursor, and
-compatible remote MCP clients. Account-scoped API keys remain an advanced
-fallback for CI and non-interactive clients.
-
-Claude Desktop custom connector:
-
-1. Add `https://mcp-ally-server.vercel.app/api/mcp` as a custom connector.
-2. Sign in with the same email used for Ally.
-3. Review and authorize the requested MCP access.
-
-Connect Claude Code without running the local Node process:
+Build the local server:
 
 ```bash
-claude mcp add --transport http --scope local ally-remote \
-  https://mcp-ally-server.vercel.app/api/mcp
-claude mcp login ally-remote
-claude mcp get ally-remote
+pnpm --filter @ally/mcp build
 ```
 
-Codex uses the same OAuth discovery and browser authorization:
+Example `.mcp.json`:
 
-```bash
-codex mcp add ally-remote \
-  --url https://mcp-ally-server.vercel.app/api/mcp
-codex mcp login ally-remote --scopes email
-codex mcp get ally-remote
+```json
+{
+  "mcpServers": {
+    "ally": {
+      "command": "node",
+      "args": ["/absolute/path/to/allyMCP/packages/mcp/dist/index.js"],
+      "env": {
+        "ALLY_PROJECT_ROOT": "/absolute/path/to/target-project",
+        "ALLY_API_URL": "https://mcp-ally-server.vercel.app",
+        "ALLY_API_KEY": "${ALLY_API_KEY}"
+      }
+    }
+  }
+}
 ```
 
-For CI or an older non-interactive client, generate an Ally API key and send it
-as `Authorization: Bearer <ALLY_API_KEY>`. Do not use this fallback for normal
-interactive coding sessions.
+Generate an API key from the Ally workspace only for local sync, CI, or another
+non-interactive client. Interactive hosted clients should use OAuth.
 
-The hosted server supports the complete supplied-source loop:
-`search_wcag`, `explain_finding`, `scan_accessibility`, `plan_fixes`,
-`record_progress`, `verify_fixes`, `list_scans`, `get_findings`, and
-`get_ally_health`. The older `search_wcag_knowledge` and `scan_source_files`
-names remain as aliases. Keep the local stdio server for automatic filesystem
-discovery, Playwright runtime scans, and approved project test scripts.
+## Hosted MCP tool catalog
 
-### Cursor
+| Phase | Tool | Purpose |
+| --- | --- | --- |
+| Understand | `search_wcag` | Metadata-filtered hybrid WCAG search |
+| Understand | `explain_finding` | Ground a finding and safe correction in WCAG evidence |
+| Scan | `scan_accessibility` | Scan explicitly supplied source and persist the report |
+| Remediate | `plan_fixes` | Create a durable, bounded remediation contract |
+| Remediate | `record_progress` | Publish implementation milestones to Traces |
+| Remediate | `verify_fixes` | Deterministically accept, reject, or escalate an attempt |
+| Inspect | `list_scans` | List recent scans in the authenticated organization |
+| Inspect | `get_findings` | Read findings from an owned scan |
+| Inspect | `get_ally_health` | Check auth, retrieval, latency, and capabilities |
 
-Use the equivalent local stdio configuration with `ALLY_API_KEY`,
-`ALLY_API_URL`, and the absolute MCP build path.
+Compatibility aliases:
 
-## Architecture: 3-Pass Engine
+- `search_wcag_knowledge` → `search_wcag`
+- `scan_source_files` → `scan_accessibility`
 
-1. **Pass 1 — Static Analysis**: Parses JSX/TSX and HTML into a unified `Elem` tree, then runs 42 rules covering images, forms, ARIA, structure, media, color, and more. Produces fingerprinted findings with severity, confidence, and WCAG mapping.
+The local MCP additionally exposes filesystem, runtime, policy, reasoning,
+fix-suggestion, and dashboard-sync tools such as `scan_project`, `scan_files`,
+`plan_remediation`, `evaluate_remediation`, `get_reasoning_packets`,
+`get_fixes`, `resolve_reasoning`, `configure_policy`, `sync_report`, and
+`sync_evaluation`.
 
-2. **Pass 2 — Runtime Scan**: Launches a headless browser via Playwright and runs axe-core against rendered pages, plus custom runtime checks. Correlates runtime findings with static ones.
+## Retrieval architecture
 
-3. **Pass 3 — LLM Reasoning**: Generates reasoning packets for uncertain findings, allowing an LLM to confirm or dismiss them with evidence-based verdicts.
+```mermaid
+flowchart TD
+    Q["Accessibility question"] --> FILTER["Normalize query and metadata filters<br/>WCAG version, level, criterion"]
+    FILTER --> EMBED["Generate 1024-d BGE query vector"]
+    FILTER --> FTS["Postgres full-text search"]
+    EMBED --> VECTOR["pgvector similarity search"]
+    VECTOR --> RRF["Reciprocal Rank Fusion"]
+    FTS --> RRF
+    RRF --> CONTEXT["Ranked WCAG passages with source metadata"]
+    CONTEXT --> PROMPT["Developer-focused grounded prompt"]
+    PROMPT --> GROQ["Groq completion"]
+    GROQ --> ANSWER["Precise answer with citations and code guidance"]
 
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `scan_project` | Full scan of a project directory |
-| `scan_files` | Scan specific files |
-| `get_findings` | Query findings with filters |
-| `explain_finding` | Detailed explanation of a finding |
-| `get_reasoning_packets` | Get LLM reasoning packets for uncertain findings |
-| `get_fixes` | Get auto-fix suggestions |
-| `resolve_reasoning` | Submit verdicts for reasoning packets |
-| `configure_policy` | Set scanning policy (severity thresholds, ignored rules) |
-| `sync_report` | Sync scan report to Supabase dashboard |
-| `search_wcag_knowledge` | Search the WCAG corpus with hybrid retrieval and lexical fallback |
-| `get_ally_health` | Check env bootstrap, retrieval, and BGE |
-| `plan_remediation` | Create a bounded accessibility sprint contract from the current scan |
-| `report_harness_progress` | Publish implementation or repair progress to the live dashboard |
-| `evaluate_remediation` | Run static, optional runtime, and approved test gates |
-| `sync_evaluation` | Persist the contract and latest evaluation attempt |
-
-## Dashboard
-
-The dashboard is a Next.js app at `apps/web/`.
-
-### Environment Variables
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=<your-supabase-url>
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
-NEXT_PUBLIC_SITE_URL=https://mcp-ally-server.vercel.app
-SUPABASE_SECRET_KEY=<your-secret-key>
-GROQ_API_KEY=<your-groq-api-key>
-GROQ_MODEL=qwen/qwen3.6-27b
-ANTHROPIC_API_KEY=<optional-chat-generation-key>
-ANTHROPIC_MODEL=<provider-model-id>
-BGE_EMBEDDING_URL=http://embeddings:8080
-BGE_EMBEDDING_TOKEN=<private-service-token>
-BGE_REQUEST_TIMEOUT_MS=5000
-CRON_SECRET=<random-production-secret>
-OTEL_EXPORTER_OTLP_ENDPOINT=<optional-collector-endpoint>
+    EMBED -. "timeout or unavailable" .-> FTS
 ```
 
-The assistant uses Groq Qwen when `GROQ_API_KEY` is configured, then falls back
-to Anthropic when configured. Accessibility questions use hybrid
-or lexical WCAG retrieval; greetings and ordinary conversation go directly to
-the model without an unnecessary search.
-See [the harness and retrieval architecture](docs/architecture/2026-07-24-ally-harness-rag.md).
+The web app and local MCP call the dedicated BGE service and Supabase
+`hybrid_search_wcag` RPC. If embeddings or hybrid search are unavailable, Ally
+returns ranked lexical results instead of failing the assistant.
 
-### Docker Deployment
+## Scan and remediation loop
 
-The root `compose.yml` runs the full stack as server-ready containers:
+```mermaid
+sequenceDiagram
+    participant D as Developer
+    participant A as Coding agent
+    participant M as Ally MCP
+    participant E as Engine/evaluator
+    participant S as Supabase
+    participant W as Traces workspace
 
-```bash
-docker compose up --build -d
+    D->>A: Scan and fix accessibility defects
+    A->>M: scan_accessibility / scan_project
+    M->>E: Parse and run deterministic rules
+    E-->>M: Findings + score + stable match keys
+    M->>S: Persist scan and findings
+    S-->>W: Realtime scan/run events
+
+    A->>M: plan_fixes / plan_remediation
+    M->>S: Persist scoped contract
+    M-->>A: Exact files, targets, and acceptance gates
+
+    A->>M: record_progress
+    M->>S: Append ordered event
+    S-->>W: Realtime progress update
+
+    A->>M: verify_fixes / evaluate_remediation
+    M->>E: Re-scan exact baseline file set
+    E->>E: Check resolved targets, regressions, score, scope, tests
+    E-->>M: Pass, repair, or escalation verdict
+    M->>S: Persist attempt and sanitized evidence
+    M-->>A: Actionable deterministic result
 ```
 
-Services:
+Hosted contracts:
 
-```txt
-web        http://localhost:3000
-embeddings http://localhost:8080
-```
+- Allow at most three verification attempts.
+- Require the exact baseline file set.
+- Reject unchanged or out-of-scope submissions.
+- Reject new moderate-or-higher findings.
+- Allow no more than two new minor findings.
+- Require a non-decreasing accessibility score.
+- Never persist submitted source content.
 
-Inside Docker, the web container talks to BGE over Docker DNS at
-`http://embeddings:8080`. On a VPS or other single-server deployment, keep that
-internal URL and expose only the web service publicly through your reverse
-proxy. The Compose file binds the BGE host port to `127.0.0.1` for local
-debugging without exposing it publicly. Text completion uses the configured
-Groq API, with Anthropic as an optional hosted fallback.
-
-When `BGE_EMBEDDING_URL` is set, the web app and MCP bypass the legacy
-`search-wcag` Edge Function: they generate a query vector with the dedicated
-BGE service and invoke Supabase `hybrid_search_wcag` directly. If either is
-unavailable, they fall back to ranked full-text retrieval.
-
-### Deterministic evaluator
+### Local runtime and test gates
 
 Add an evaluation profile to the target project's `ally.config.json`:
 
@@ -180,75 +405,103 @@ Add an evaluation profile to the target project's `ally.config.json`:
 }
 ```
 
-`plan_remediation` first verifies a clean runtime and test baseline.
-`evaluate_remediation` repeats the static scan, Playwright + axe/custom checks,
-and only the named `package.json` scripts. Every contracted gate must pass.
-See [the evaluator implementation](docs/architecture/2026-07-25-evaluator-implementation.md).
+Only scripts explicitly listed in `testScripts` may run as evaluator gates.
 
-### Live harness status
+## Traces and progress
 
-The organization workspace includes **MCP Activity**, and each scan detail
-keeps a project-filtered **Run status** tab. Hosted and local MCP tools publish
-each transition to durable Supabase runs and immutable events:
+```mermaid
+flowchart LR
+    CALL["MCP tool call"] --> WRAP["Lifecycle wrapper"]
+    WRAP --> AUTH["Authenticate connection"]
+    AUTH --> RUN["Create durable mcp_run"]
+    RUN --> EVENTS["Append ordered mcp_run_events"]
+    EVENTS --> DB["Supabase Postgres"]
+    DB --> REALTIME["Supabase Realtime"]
+    REALTIME --> UI["Traces: Live / History / Errors"]
 
-`MCP connected → scan → publish scan → plan → implement/repair → evaluate → publish result`
+    WRAP --> TOKEN{"Client supplied<br/>progress token?"}
+    TOKEN -->|Yes| NATIVE["MCP notifications/progress"]
+    TOKEN -->|No| BEST["Continue without native progress"]
 
-Apply `apps/web/supabase/migrations/20260726192000_mcp_activity.sql` before
-deploying this application version. The MCP authenticates each event with the
-same Ally API key used for scan sync. Signed-in dashboards load a snapshot
-under RLS, subscribe through Supabase Realtime, and fall back to five-second
-polling if Realtime is interrupted. Completed activity telemetry is retained
-for 30 days; scans, findings, remediation contracts, and evaluations are not
-part of that cleanup.
+    WRAP --> LOGS["Structured Vercel logs"]
+    WRAP -. "OTLP configured" .-> OTEL["OpenTelemetry spans"]
+```
 
-Native MCP clients receive `notifications/progress` when they provide a
-progress token. Structured Vercel logs are always emitted. OTLP spans are
-enabled only when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, and never include
-credentials, prompts, snippets, or submitted source. Submitted source is
-scanned in memory; only hashes, paths, finding metadata, WCAG excerpts, and
-sanitized verdicts are retained.
+Progress is monotonic from 0–100. Native MCP progress is best-effort; Supabase
+is the product-facing source of truth. The dashboard subscribes through RLS and
+Realtime, with a five-second polling fallback only when Realtime disconnects.
+That fallback refreshes **Trace data** and never polls a developer repository.
 
-After changing MCP tools, rebuild the package and reconnect the MCP server:
+Completed activity telemetry is retained for 30 days. Scans, findings,
+contracts, and verification attempts are not deleted by telemetry cleanup.
+
+## Commands and validation
 
 ```bash
-pnpm --filter @ally/mcp build
+pnpm build                    # Build every workspace package
+pnpm test                     # Run all tests
+pnpm typecheck                # Type-check every workspace package
+pnpm dogfood                  # Scan the Ally dashboard with Ally
+pnpm --filter web test        # Web tests only
+pnpm --filter @ally/mcp test  # Local MCP tests only
+pnpm --filter @ally/engine test:runtime
 ```
 
-Connecting MCP starts the server but does not start a scan. A run appears when
-`scan_project` or `scan_files` is called. Scanning, planning, evaluation, and
-dashboard sync report themselves automatically. The generator reports
-implementation and repair stages with `report_harness_progress`.
+Runtime tests require Playwright browser dependencies.
 
-### Running
+## Production deployment
+
+### Vercel
+
+The Vercel project serves both the dashboard and hosted MCP endpoint.
+
+1. Add the required root environment variables to Production and Preview.
+2. Set `NEXT_PUBLIC_SITE_URL` to the production HTTPS origin.
+3. Apply additive Supabase migrations before deploying code that depends on
+   them.
+4. Deploy from the GitHub-connected default branch.
+5. Verify:
+   - `/.well-known/oauth-protected-resource`
+   - `/api/mcp`
+   - OAuth sign-in and consent
+   - `get_ally_health`
+   - a scan, plan, failed verification, repair, and passing verification
+   - corresponding entries in Traces
+
+Vercel cannot run the 1.3 GB BGE model inside a normal serverless function.
+Set `BGE_EMBEDDING_URL` to a private, reachable embedding service or rely on
+lexical fallback.
+
+### Container server
+
+On a VPS or container platform:
 
 ```bash
-pnpm --filter web dev --port 3000
+docker compose up --build -d
 ```
 
-The web scripts load the monorepo-root `.env` before Next starts, so the app,
-Turbopack, and middleware share the centralized configuration.
+Keep `embeddings:8080` private on the Compose network and expose only the web
+service through HTTPS. The Compose file maps the BGE port to host loopback for
+diagnostics, not public access.
 
-## Scripts
+## Security and data handling
 
-```bash
-pnpm build       # Build all packages
-pnpm test        # Run all tests
-pnpm typecheck   # Type-check all packages
-pnpm dogfood     # Scan the Ally dashboard with the Ally engine (a11y gate)
-```
+- OAuth access is scoped to the signed-in Ally organization.
+- API keys are hashed; their full value is shown only at creation.
+- Supabase RLS protects organization-owned product data.
+- Source submitted to hosted scan, planning, or verification tools is processed
+  in memory and is not persisted.
+- Persisted evidence is limited to paths, hashes, finding metadata, targets,
+  WCAG excerpts, sanitized progress, and verdicts.
+- Logs and OpenTelemetry spans must never include credentials, prompts, source,
+  or snippets.
+- Account deletion cascades through organization-owned scans, findings,
+  contracts, attempts, API keys, and MCP activity.
 
-## Project Structure
+## Detailed architecture notes
 
-```
-packages/
-  engine/    # Core scanning engine (42 rules, 3-pass pipeline)
-  mcp/       # MCP server and deterministic remediation harness
-  shared/    # Shared types and utilities
-apps/
-  web/       # Next.js dashboard
-scripts/
-  dogfood.mjs  # Self-scan accessibility gate
-```
+- [Harness and retrieval architecture](docs/architecture/2026-07-24-ally-harness-rag.md)
+- [Deterministic evaluator implementation](docs/architecture/2026-07-25-evaluator-implementation.md)
 
 ## License
 
